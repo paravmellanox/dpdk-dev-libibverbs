@@ -75,6 +75,9 @@ struct ibv_exp_ext_atomics_params ext_atom;     /* Extended Atomics params */
 struct ibv_exp_umr_caps umr_caps;               /* UMR capabilities */
 struct ibv_exp_odp_caps	odp_caps;              /* On-Demand Paging capabilities */
 int                     max_dct;                /* Max DC targets */
+int                     max_ctx_res_domain;     /* Max context resource domain */
+struct ibv_exp_rx_hash_caps rx_hash_caps;       /* RX hash capabilities */
+uint32_t                    max_wq_type_rq;     /* Max Work Queue from type RQ */
 .in -8
 };
 
@@ -106,6 +109,17 @@ struct ibv_exp_odp_caps {
 		uint32_t	raw_eth_odp_caps; /* Mask with enum ibv_odp_tranport_cap_bits to know which operations are supported. */
 	} per_transport_caps;
 };
+
+struct ibv_exp_rx_hash_caps {
+.in +8
+uint32_t                max_rwq_indirection_tables;     /* Max number of receive work queue indirection tables */
+uint32_t                max_rwq_indirection_table_size; /* Max size of receive work queue indirection table */
+uint8_t                 supported_hash_functions;       /* Mask with enum ibv_exp_rx_hash_function_flags to know which hash functions are supported */
+uint64_t                supported_packet_fields;        /* Mask with enum ibv_exp_rx_hash_fields to know which packet fields are supported */
+uint32_t                supported_qps;                  /* Mask with enum ibv_exp_supported_qp_types to know which QP types support RX hash */
+.in -8
+};
+
 
 .fi
 .SH "RETURN VALUE"

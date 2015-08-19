@@ -235,7 +235,7 @@ int ibv_exp_cmd_create_qp(struct ibv_context *context,
 				      resp_exp, lib_resp_size, drv_resp_size);
 	} else {
 		wsize = lib_cmd_size + drv_cmd_size;
-		IBV_INIT_CMD_RESP(cmd, wsize, CREATE_QP, resp, lib_resp_size);
+		IBV_INIT_CMD_RESP(cmd, wsize, CREATE_QP, resp, lib_resp_size + drv_resp_size);
 	}
 
 	cmd->user_handle     = (uintptr_t) qp;

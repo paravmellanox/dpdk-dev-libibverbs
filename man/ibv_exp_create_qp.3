@@ -38,6 +38,8 @@ struct ibv_exp_qpg      qpg;              /* QP group, used for RSS/TSS */
 uint32_t                max_atomic_arg;   /* Request max atomic argument size for atomic masked operations */
 uint32_t                max_inl_send_klms;/* Request Maximum number of KLMs when creating UMR whith IBV_EXP_SEND_INLINE */
 struct ibv_exp_res_domain *res_domain;    /* Provides resource domain to indicate the QP threading and message model */
+struct ibv_exp_rx_hash_conf *rx_hash_conf;/* RX hash configuration used for RSS */
+uint8_t                      port_num;    /* Port number to be associated with, applicable only to RX QP */
 .in -8
 };
 .sp
@@ -67,6 +69,18 @@ IBV_EXP_QP_CREATE_UMR		         = (1 << 9),         /* Create UMR */
 .in -8
 };
 .fi
+.sp
+.nf
+struct ibv_exp_rx_hash_conf {
+.in +8
+uint8_t                             rx_hash_function;    /* Use enum ibv_exp_rx_hash_function_flags */
+uint8_t                             rx_hash_key_len;     /* key length - valid only for Toeplitz */
+uint8_t                            *rx_hash_key;         /* key value - valid only for Toeplitz */
+uint64_t                            rx_hash_fields_mask; /* Use enum ibv_exp_rx_hash_fields to set which incoming packet field should participates in RX hash */
+struct ibv_exp_rwq_ind_table       *rwq_ind_tbl;         /* Receive work queue indirection table */
+.in -8
+};
+.fi
 .PP
 The function
 .B ibv_exp_create_qp()
@@ -86,13 +100,25 @@ Check the QP number (\fBqp_num\fR) in the returned QP.
 The attributes max_recv_wr and max_recv_sge are ignored by
 .B ibv_exp_create_qp()
 if the QP is to be associated with an SRQ.
+.PP
+If the QP is RX one (i.e. ibv_exp_rx_hash_conf was set) it serves only as a steering entry:
+.nf
+1) Input CQs,SRQ must be NULL.
+.nf
+2) Input capabilities relate to send/recv must be 0.
+.nf
+3) ibv_post_send/recv is not supported on.
+.nf
+4) qp_type must support RX hash, use ibv_exp_query_device to get rx_hash_caps and evaluate.
 .SH "SEE ALSO"
 .BR ibv_alloc_pd (3),
 .BR ibv_modify_qp (3),
 .BR ibv_exp_modify_qp (3),
 .BR ibv_exp_query_qp (3),
 .BR ibv_query_qp (3)
-.BR ibv_exp_create_res_domain (3)
+.BR ibv_exp_create_res_domain (3),
+.BR ibv_exp_create_rwq_ind_table (3),
+.BR ibv_exp_query_device (3)
 .SH "AUTHORS"
 .TP
 Yishai Hadas <yishaih@mellanox.com>

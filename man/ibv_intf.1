@@ -37,7 +37,7 @@ By using the '\-S', '\-R' and '\-P' options the application covers the following
  \tR_NORM         \- ibv_post_recv
  \tR_BURST        \- recv_burst (member of ibv_exp_qp_burst_family)
 .TP
- \-R
+ \-P
  \tP_NORM         \- ibv_poll_cq
  \tP_CNT          \- poll_cnt (member of ibv_exp_cq_family)
  \tP_LEN          \- poll_length (member of ibv_exp_cq_family)
@@ -68,7 +68,7 @@ By using the '\-S', '\-R' and '\-P' options the application covers the following
 .TP
 \fB\-R\fR, \fB\-\-recv\-verb\fR=<verbs>   recv verb interface to use R_NORM/R_BURST (default R_BURST)
 .TP
-\fB\-P\fR, \fB\-\-poll\-verb\fR=<verbs>   poll verb interface to use P_NORM/P_CNT/P_LEN (default R_BURST)
+\fB\-P\fR, \fB\-\-poll\-verb\fR=<verbs>   poll verb interface to use P_NORM/P_CNT/P_LEN (default send: P_CNT recv: P_LEN)
 .TP
 \fB\-c\fR, \fB\-\-cpus\-list\fR=<list>    CPUs list to run on (default [0..5],[12..17])
 .TP
