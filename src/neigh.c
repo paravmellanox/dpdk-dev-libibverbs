@@ -78,6 +78,25 @@ struct skt {
 };
 
 
+struct rtnl_neigh *mrtnl_neigh_get(struct nl_cache *cache, int ifindex,
+				   struct nl_addr *dst)
+{
+	struct rtnl_neigh *neigh;
+
+	neigh = (struct rtnl_neigh *)nl_cache_get_first(cache);
+	while (neigh) {
+		if (rtnl_neigh_get_ifindex(neigh) == ifindex &&
+		    !nl_addr_cmp(rtnl_neigh_get_dst(neigh), dst)) {
+			nl_object_get((struct nl_object *)neigh);
+			return neigh;
+		}
+
+		neigh = (struct rtnl_neigh *)nl_cache_get_next((struct nl_object *)neigh);
+	}
+
+	return NULL;
+}
+
 static int set_link_port(union sktaddr *s, int port, int oif)
 {
 	switch (s->s.sa_family) {
@@ -145,9 +164,16 @@ static struct nl_addr *get_neigh_mac(struct get_neigh_handler *neigh_handler)
 
 	/* future optimization - if link local address - parse address and
 	 * return mac */
+#ifdef HAVE_LIBNL3_BUG
+	neigh = mrtnl_neigh_get(neigh_handler->neigh_cache,
+				neigh_handler->oif,
+				neigh_handler->dst);
+#else
 	neigh = rtnl_neigh_get(neigh_handler->neigh_cache,
 			       neigh_handler->oif,
 			       neigh_handler->dst);
+#endif
+
 	if (NULL == neigh) {
 		print_dbg("Neigh isn't at cache\n");
 		return NULL;

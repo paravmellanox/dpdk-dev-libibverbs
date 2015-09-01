@@ -58,6 +58,10 @@ if  test x$with_resolve_neigh = x || test x$with_resolve_neigh = xyes; then
 			   LIBNL_CFLAGS="$LIBNL_CFLAGS $LIBNL_ROUTE3_CFLAGS"
 			   LIBNL_LIBS="$LIBNL_LIBS $LIBNL_ROUTE3_LIBS"], [:]
 			  );
+
+	PKG_CHECK_MODULES([LIBNL3_BUG], [libnl-3.0 >= 3.2.15 libnl-3.0 < 3.2.22],
+                          [AC_DEFINE([HAVE_LIBNL3_BUG], [1], [Use libnl-3.2.15-21])], [:])
+
 	if test "$have_libnl" = no; then
 		PKG_CHECK_MODULES([LIBNL], [libnl-1], [have_libnl=yes
 				  AC_DEFINE([HAVE_LIBNL1], [1], [Use libnl-1])
