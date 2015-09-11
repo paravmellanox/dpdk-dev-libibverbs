@@ -45,6 +45,7 @@
 #include <alloca.h>
 #include <errno.h>
 #include <string.h>
+#include <dirent.h>
 
 #include <infiniband/arch.h>
 
@@ -291,6 +292,63 @@ int __ibv_exp_rereg_mr(struct ibv_mr *mr, int flags,
 	}
 
 	return err;
+}
+
+static int __ibv_exp_query_gid_attr(struct ibv_context *context,
+				    uint8_t port_num,
+				    unsigned int index,
+				    struct ibv_exp_gid_attr *attr)
+{
+	char *dir_path;
+	char name[32];
+	char buff[41];
+	DIR *dir;
+
+	if (attr->comp_mask & ~(IBV_EXP_QUERY_GID_ATTR_RESERVED - 1))
+		return ENOTSUP;
+
+	if (attr->comp_mask & IBV_EXP_QUERY_GID_ATTR_TYPE) {
+		snprintf(name, sizeof(name), "ports/%d/gid_attrs/types/%d",
+			 port_num, index);
+		if (ibv_read_sysfs_file(context->device->ibdev_path, name, buff,
+					sizeof(buff)) <= 0) {
+			if (asprintf(&dir_path, "%s/%s",
+				     context->device->ibdev_path,
+				     "ports/1/gid_attrs/") < 0)
+				return ENOMEM;
+			dir = opendir(dir_path);
+			free(dir_path);
+			if (!dir) {
+				if (errno == ENOENT)
+					/* Assuming that if gid_attrs doesn't
+					 * exist, we have an old kernel and all
+					 * GIDs are IB/RoCE v1
+					 */
+					attr->type = IBV_EXP_IB_ROCE_V1_GID_TYPE;
+				else
+					return errno;
+			} else {
+				closedir(dir);
+				return EINVAL;
+			}
+		} else {
+			if (!strcmp(buff, "IB/RoCE V1"))
+				attr->type = IBV_EXP_IB_ROCE_V1_GID_TYPE;
+			else if (!strcmp(buff, "RoCE V2"))
+				attr->type = IBV_EXP_ROCE_V2_GID_TYPE;
+			else if (!strcmp(buff, "RoCE V1.5"))
+				attr->type = IBV_EXP_ROCE_V1_5_GID_TYPE;
+			else
+				return EINVAL;
+		}
+	}
+
+	if (attr->comp_mask & IBV_EXP_QUERY_GID_ATTR_GID) {
+		if (ibv_query_gid(context, port_num, index, &attr->gid))
+			return ENOENT;
+	}
+
+	return 0;
 }
 
 static void remove_env(struct verbs_environment *env,
@@ -547,6 +605,7 @@ struct ibv_context *__ibv_open_device(struct ibv_device *device)
 		context_ex->has_comp_mask |= VERBS_CONTEXT_EXP;
 		context_ex->context.abi_compat  = __VERBS_ABI_IS_EXTENDED;
 		context_ex->sz = sizeof(*context_ex);
+		context_exp->exp_query_gid_attr = __ibv_exp_query_gid_attr;
 
 		context = &context_ex->context;
 		ret = verbs_device->init_context(verbs_device, context, cmd_fd);
