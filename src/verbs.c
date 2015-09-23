@@ -773,14 +773,21 @@ return_ah:
 default_symver(__ibv_create_ah, ibv_create_ah);
 
 static int ibv_find_gid_index(struct ibv_context *context, uint8_t port_num,
-			      union ibv_gid *gid)
+			      union ibv_gid *gid, uint32_t gid_type)
 {
+	struct ibv_exp_gid_attr gid_attr;
 	union ibv_gid sgid;
 	int i = 0, ret;
 
+	gid_attr.comp_mask = IBV_EXP_QUERY_GID_ATTR_TYPE;
+
 	do {
-		ret = ibv_query_gid(context, port_num, i++, &sgid);
-	} while (!ret && memcmp(&sgid, gid, sizeof *gid));
+		ret = ibv_query_gid(context, port_num, i, &sgid);
+		if (!ret)
+			ret = ibv_exp_query_gid_attr(context, port_num, i,
+						     &gid_attr);
+		i++;
+	} while (!ret && (memcmp(&sgid, gid, sizeof *gid) || (gid_type != gid_attr.type)));
 
 	return ret ? ret : i - 1;
 }
@@ -983,6 +990,7 @@ int ibv_init_ah_from_wc(struct ibv_context *context, uint8_t port_num,
 	int version;
 	int is_eth;
 	struct ibv_exp_port_attr port_attr;
+	uint32_t gid_type;
 
 	port_attr.comp_mask = IBV_EXP_QUERY_PORT_ATTR_MASK1;
 	port_attr.mask1 = IBV_EXP_QUERY_PORT_LINK_LAYER;
@@ -1006,10 +1014,16 @@ int ibv_init_ah_from_wc(struct ibv_context *context, uint8_t port_num,
 		if (version == 4) {
 			if (((ntohl)(iph->daddr) & CLASS_D_MASK) == CLASS_D_ADDR)
 				return EINVAL;
+
+			if (iph->protocol == IPPROTO_UDP)
+				gid_type = IBV_EXP_ROCE_V2_GID_TYPE;
+			else
+				gid_type = IBV_EXP_ROCE_V1_5_GID_TYPE;
+
 			ipv6_addr_set_v4mapped(iph->saddr,
 					       (struct in6_addr *)&ah_attr->grh.dgid);
 			ipv6_addr_set_v4mapped(iph->daddr, (struct in6_addr *)&sgid.addr);
-			ret = ibv_find_gid_index(context, port_num, &sgid.gid);
+			ret = ibv_find_gid_index(context, port_num, &sgid.gid, gid_type);
 			if (ret < 0)
 				return ret;
 
@@ -1022,7 +1036,15 @@ int ibv_init_ah_from_wc(struct ibv_context *context, uint8_t port_num,
 			ah_attr->grh.dgid = grh->sgid;
 			if (grh->dgid.raw[0] == 0xFF)
 				return EINVAL;
-			ret = ibv_find_gid_index(context, port_num, &grh->dgid);
+
+			if (grh->next_hdr == IPPROTO_UDP)
+				gid_type = IBV_EXP_ROCE_V2_GID_TYPE;
+			else if (grh->next_hdr == 0x1b)
+				gid_type = IBV_EXP_IB_ROCE_V1_GID_TYPE;
+			else
+				gid_type = IBV_EXP_ROCE_V1_5_GID_TYPE;
+
+			ret = ibv_find_gid_index(context, port_num, &grh->dgid, gid_type);
 			if (ret < 0)
 				return ret;
 
