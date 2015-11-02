@@ -1232,7 +1232,8 @@ int ibv_cmd_detach_mcast(struct ibv_qp *qp, const union ibv_gid *gid, uint16_t l
 }
 
 static int ib_spec_to_kern_spec(struct ibv_exp_flow_spec *ib_spec,
-				struct ibv_kern_spec *kern_spec, int is_exp)
+				struct ibv_exp_kern_spec *kern_spec,
+				int is_exp)
 {
 	kern_spec->hdr.type = ib_spec->hdr.type;
 
@@ -1246,7 +1247,7 @@ static int ib_spec_to_kern_spec(struct ibv_exp_flow_spec *ib_spec,
 		break;
 	case IBV_EXP_FLOW_SPEC_IB:
 		if (!is_exp)
-			return -EINVAL;
+			return EINVAL;
 		kern_spec->ib.size = sizeof(struct ibv_kern_spec_ib);
 		memcpy(&kern_spec->ib.val, &ib_spec->ib.val,
 		       sizeof(struct ibv_exp_flow_ib_filter));
@@ -1260,6 +1261,15 @@ static int ib_spec_to_kern_spec(struct ibv_exp_flow_spec *ib_spec,
 		memcpy(&kern_spec->ipv4.mask, &ib_spec->ipv4.mask,
 		       sizeof(struct ibv_exp_flow_ipv4_filter));
 		break;
+	case IBV_EXP_FLOW_SPEC_IPV6:
+		if (!is_exp)
+			return EINVAL;
+		kern_spec->ipv6.size = sizeof(struct ibv_exp_kern_spec_ipv6);
+		memcpy(&kern_spec->ipv6.val, &ib_spec->ipv6.val,
+		       sizeof(struct ibv_exp_flow_ipv6_filter));
+		memcpy(&kern_spec->ipv6.mask, &ib_spec->ipv6.mask,
+		       sizeof(struct ibv_exp_flow_ipv6_filter));
+		break;
 	case IBV_EXP_FLOW_SPEC_TCP:
 	case IBV_EXP_FLOW_SPEC_UDP:
 		kern_spec->tcp_udp.size = sizeof(struct ibv_kern_spec_tcp_udp);
@@ -1269,25 +1279,46 @@ static int ib_spec_to_kern_spec(struct ibv_exp_flow_spec *ib_spec,
 		       sizeof(struct ibv_exp_flow_tcp_udp_filter));
 		break;
 	default:
-		return -EINVAL;
+		return EINVAL;
 	}
+	return 0;
+}
+
+static int flow_is_exp(struct ibv_exp_flow_attr *flow_attr)
+{
+	int i;
+	void *ib_spec = flow_attr + 1;
+
+	for (i = 0; i < flow_attr->num_of_specs; i++) {
+		if (((struct ibv_exp_flow_spec *)ib_spec)->hdr.type ==
+		    IBV_EXP_FLOW_SPEC_IPV6)
+			return 1;
+		ib_spec += ((struct ibv_exp_flow_spec *)ib_spec)->hdr.size;
+	}
+
 	return 0;
 }
 
 static struct ibv_flow *cmd_create_flow(struct ibv_qp *qp,
 					struct ibv_exp_flow_attr *flow_attr,
-					void *ib_spec, int is_exp)
+					void *ib_spec,
+					int is_exp)
 {
 	struct ibv_create_flow *cmd;
 	struct ibv_create_flow_resp resp;
 	struct ibv_flow *flow_id;
 	size_t cmd_size;
 	size_t written_size;
-	int i, err;
+	int i, err = 0;
 	void *kern_spec;
+	int exp_flow = flow_is_exp(flow_attr);
+	size_t spec_size;
 
-	cmd_size = sizeof(*cmd) + (flow_attr->num_of_specs *
-				   sizeof(struct ibv_kern_spec));
+	spec_size = exp_flow ? sizeof(struct ibv_kern_spec) :
+				sizeof(struct ibv_exp_kern_spec);
+
+	cmd_size = sizeof(*cmd) + (flow_attr->num_of_specs * spec_size);
+
 	cmd = alloca(cmd_size);
 	flow_id = calloc(1, sizeof(*flow_id));
 	if (!flow_id)
@@ -1305,8 +1336,10 @@ static struct ibv_flow *cmd_create_flow(struct ibv_qp *qp,
 	kern_spec = cmd + 1;
 	for (i = 0; i < flow_attr->num_of_specs; i++) {
 		err = ib_spec_to_kern_spec(ib_spec, kern_spec, is_exp);
-		if (err)
+		if (err) {
+			errno = err;
 			goto err;
+		}
 		cmd->flow_attr.size +=
 			((struct ibv_kern_spec *)kern_spec)->hdr.size;
 		kern_spec += ((struct ibv_kern_spec *)kern_spec)->hdr.size;
@@ -1314,8 +1347,13 @@ static struct ibv_flow *cmd_create_flow(struct ibv_qp *qp,
 	}
 
 	written_size = sizeof(*cmd) + cmd->flow_attr.size;
-	IBV_INIT_CMD_RESP_EX_VCMD(cmd, written_size, written_size, CREATE_FLOW,
-				  &resp, sizeof(resp));
+	if (!exp_flow)
+		IBV_INIT_CMD_RESP_EX_VCMD(cmd, written_size, written_size,
+					  CREATE_FLOW, &resp, sizeof(resp));
+	else
+		IBV_INIT_CMD_RESP_EXP(CREATE_FLOW, cmd, written_size, 0,
+				      &resp, sizeof(resp), 0);
+
 	if (write(qp->context->cmd_fd, cmd, written_size) != written_size)
 		goto err;
 
@@ -1333,7 +1371,9 @@ struct ibv_exp_flow *ibv_exp_cmd_create_flow(struct ibv_qp *qp,
 					     struct ibv_exp_flow_attr *flow_attr)
 {
 	void *ib_spec = flow_attr + 1;
-	struct ibv_flow *fl = cmd_create_flow(qp, flow_attr, ib_spec, 1);
+	struct ibv_flow *fl;
+
+	fl = cmd_create_flow(qp, flow_attr, ib_spec, 1);
 
 	if (fl)
 		return (struct ibv_exp_flow *)&fl->context;
