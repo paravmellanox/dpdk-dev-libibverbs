@@ -392,6 +392,7 @@ static int print_hca_cap(struct ibv_device *ib_dev, uint8_t ib_port)
 {
 	struct ibv_context *ctx;
 	struct ibv_exp_device_attr device_attr;
+	struct ibv_device_attr device_legacy_attr;
 	struct ibv_port_attr port_attr;
 	int rc = 0;
 	uint8_t port;
@@ -408,9 +409,13 @@ static int print_hca_cap(struct ibv_device *ib_dev, uint8_t ib_port)
 	device_attr.comp_mask = IBV_EXP_DEVICE_ATTR_RESERVED - 1;
 
 	if (ibv_exp_query_device(ctx, &device_attr)) {
-		fprintf(stderr, "Failed to query device props");
-		rc = 2;
-		goto cleanup;
+		if (ibv_query_device(ctx, &device_legacy_attr)) {
+			fprintf(stderr, "Failed to query device props\n");
+			rc = 2;
+			goto cleanup;
+		}
+
+		memcpy(&device_attr, &device_legacy_attr, sizeof(device_legacy_attr));
 	}
 
 	printf("hca_id:\t%s\n", ibv_get_device_name(ib_dev));
