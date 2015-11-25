@@ -1776,8 +1776,29 @@ struct ibv_exp_dc_info_ent {
 	uint32_t	seqnum;
 };
 
+enum ibv_exp_roce_gid_type {
+	IBV_EXP_IB_ROCE_V1_GID_TYPE,
+	IBV_EXP_ROCE_V2_GID_TYPE,
+	IBV_EXP_ROCE_V1_5_GID_TYPE,
+};
+
+enum ibv_exp_query_gid_attr {
+	IBV_EXP_QUERY_GID_ATTR_TYPE = (1 << 0),
+	IBV_EXP_QUERY_GID_ATTR_GID	= (1 << 1),
+	IBV_EXP_QUERY_GID_ATTR_RESERVED	= (1 << 2),
+};
+
+struct ibv_exp_gid_attr {
+	uint32_t			comp_mask;
+	enum ibv_exp_roce_gid_type	type;
+	union ibv_gid			gid;
+};
+
 struct verbs_context_exp {
 	/*  "grows up" - new fields go here */
+	int (*exp_query_gid_attr)(struct ibv_context *context, uint8_t port_num,
+				  unsigned int index,
+				  struct ibv_exp_gid_attr *attr);
 	int (*exp_destroy_rwq_ind_table)(struct ibv_exp_rwq_ind_table *rwq_ind_table);
 	struct ibv_exp_rwq_ind_table *(*exp_create_rwq_ind_table)(struct ibv_context *context,
 								  struct ibv_exp_rwq_ind_table_init_attr *init_attr);
@@ -2701,6 +2722,30 @@ static inline int ibv_exp_destroy_rwq_ind_table(struct ibv_exp_rwq_ind_table *rw
 	return vctx->exp_destroy_rwq_ind_table(rwq_ind_table);
 }
 
+/*
+ * ibv_exp_query_gid_attr - query a GID attributes
+ * @context: ib context
+ * @port_num: port number
+ * @index: gid index in the gids table
+ * @attr: the gid attributes of index in the gids table
+ * Return value
+ * ibv_exp_query_gid_attr return 0 on success, or the value of errno on failure.
+ */
+static inline int ibv_exp_query_gid_attr(struct ibv_context *context,
+					 uint8_t port_num,
+					 unsigned int index,
+					 struct ibv_exp_gid_attr *attr)
+{
+	struct verbs_context_exp *vctx;
+
+	vctx = verbs_get_exp_ctx_op(context, exp_query_gid_attr);
+	if (!vctx)
+		return ENOSYS;
+
+	IBV_EXP_RET_EINVAL_ON_INVALID_COMP_MASK(attr->comp_mask,
+						IBV_EXP_QUERY_GID_ATTR_RESERVED - 1);
+	return vctx->exp_query_gid_attr(context, port_num, index, attr);
+}
 END_C_DECLS
 
 #define VERBS_MAX_ENV_VAL 4096
