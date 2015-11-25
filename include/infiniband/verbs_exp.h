@@ -1457,7 +1457,7 @@ enum ibv_exp_wq_attr_mask {
 };
 
 struct ibv_exp_wq_attr {
-	/* enum ibv_wq_attr_mask */
+	/* enum ibv_exp_wq_attr_mask */
 	uint32_t		attr_mask;
 	/* Move the RQ to this state */
 	enum	ibv_exp_wq_state	wq_state;
@@ -1698,15 +1698,22 @@ struct ibv_exp_wq_family {
 
 /* CQ family */
 enum ibv_exp_cq_family_flags {
-	IBV_EXP_CQ_RX_IP_CSUM_OK		= 1 << 0,
-	IBV_EXP_CQ_RX_TCP_UDP_CSUM_OK		= 1 << 1,
-	IBV_EXP_CQ_RX_IPV4_PACKET		= 1 << 2,
-	IBV_EXP_CQ_RX_IPV6_PACKET		= 1 << 3,
-	IBV_EXP_CQ_RX_TUNNEL_PACKET		= 1 << 4,
-	IBV_EXP_CQ_RX_OUTER_IP_CSUM_OK		= 1 << 5,
-	IBV_EXP_CQ_RX_OUTER_TCP_UDP_CSUM_OK	= 1 << 6,
-	IBV_EXP_CQ_RX_OUTER_IPV4_PACKET		= 1 << 7,
-	IBV_EXP_CQ_RX_OUTER_IPV6_PACKET		= 1 << 8,
+							/* The cq_family_flags are supported
+							 * according to the existence of the
+							 * related device capabilities flags */
+	IBV_EXP_CQ_RX_IP_CSUM_OK		= 1 << 0, /* IBV_EXP_DEVICE_RX_CSUM_IP_PKT or IBV_EXP_DEVICE_RX_CSUM_TCP_UDP_PKT */
+	IBV_EXP_CQ_RX_TCP_UDP_CSUM_OK		= 1 << 1, /* IBV_EXP_DEVICE_RX_CSUM_TCP_UDP_PKT */
+	IBV_EXP_CQ_RX_IPV4_PACKET		= 1 << 2, /* IBV_EXP_DEVICE_RX_CSUM_IP_PKT or IBV_EXP_DEVICE_RX_CSUM_TCP_UDP_PKT */
+	IBV_EXP_CQ_RX_IPV6_PACKET		= 1 << 3, /* IBV_EXP_DEVICE_RX_CSUM_IP_PKT or IBV_EXP_DEVICE_RX_CSUM_TCP_UDP_PKT */
+	IBV_EXP_CQ_RX_TUNNEL_PACKET		= 1 << 4, /* IBV_EXP_DEVICE_VXLAN_SUPPORT */
+	IBV_EXP_CQ_RX_OUTER_IP_CSUM_OK		= 1 << 5, /* IBV_EXP_DEVICE_VXLAN_SUPPORT */
+	IBV_EXP_CQ_RX_OUTER_TCP_UDP_CSUM_OK	= 1 << 6, /* IBV_EXP_DEVICE_VXLAN_SUPPORT */
+	IBV_EXP_CQ_RX_OUTER_IPV4_PACKET		= 1 << 7, /* IBV_EXP_DEVICE_VXLAN_SUPPORT */
+	IBV_EXP_CQ_RX_OUTER_IPV6_PACKET		= 1 << 8, /* IBV_EXP_DEVICE_VXLAN_SUPPORT */
+							/* The application can't use flag
+							 * Which is related device capabilities
+							 * flags is not set.
+							 */
 };
 
 struct ibv_exp_cq_family {
