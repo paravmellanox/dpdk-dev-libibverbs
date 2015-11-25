@@ -1579,7 +1579,9 @@ enum ibv_exp_query_intf_status {
 	IBV_EXP_INTF_STAT_VERSION_NOT_SUPPORTED, /* The provided 'intf_version' is not supported */
 	IBV_EXP_INTF_STAT_INVAL_PARARM, /* General invalid parameter */
 	IBV_EXP_INTF_STAT_INVAL_OBJ_STATE, /* QP is not in INIT, RTR or RTS state */
-	IBV_EXP_INTF_STAT_INVAL_OBJ, /* Mismatch between the provided 'obj'(CQ/QP) and requested 'intf' */
+	IBV_EXP_INTF_STAT_INVAL_OBJ, /* Mismatch between the provided 'obj'(CQ/QP/WQ) and requested 'intf' */
+	IBV_EXP_INTF_STAT_FLAGS_NOT_SUPPORTED, /* The provided set of 'flags' is not supported */
+	IBV_EXP_INTF_STAT_FAMILY_FLAGS_NOT_SUPPORTED, /* The provided set of 'family_flags' is not supported */
 };
 
 enum ibv_exp_query_intf_comp_mask {
@@ -1592,7 +1594,7 @@ struct ibv_exp_query_intf_params {
 	uint64_t			vendor_guid;	/* set in case VENDOR intf_scope selected */
 	uint32_t			intf;		/* for GLOBAL intf_scope use ibv_exp_intf_family enum */
 	uint32_t			intf_version;	/* Version */
-	void				*obj;		/* interface object (CQ/QP) */
+	void				*obj;		/* interface object (CQ/QP/WQ) */
 	void				*family_params;	/* Family-specific params */
 	uint32_t			family_flags;	/* Family-specific flags */
 	uint32_t			comp_mask;	/* use ibv_exp_query_intf_comp_mask */
@@ -1615,7 +1617,9 @@ struct ibv_exp_release_intf_params {
 /* Flags to use in family_flags field of ibv_exp_query_intf_params on family creation */
 enum ibv_exp_qp_burst_family_create_flags {
 	/* To disable loop-back of multi-cast messages in RAW-ETH */
-	IBV_EXP_QP_BURST_CREATE_DISABLE_ETH_LOOPBACK	= (1 << 0),
+	IBV_EXP_QP_BURST_CREATE_DISABLE_ETH_LOOPBACK		= (1 << 0),
+	/* To enable Multi-Packet send WR when possible */
+	IBV_EXP_QP_BURST_CREATE_ENABLE_MULTI_PACKET_SEND_WR	= (1 << 1),
 };
 
 /* Flags to use on send functions of QP burst family */
@@ -1698,7 +1702,7 @@ struct ibv_exp_wq_family {
 
 /* CQ family */
 enum ibv_exp_cq_family_flags {
-							/* The cq_family_flags are supported
+							/* The cq_family_flags are applicable
 							 * according to the existence of the
 							 * related device capabilities flags */
 	IBV_EXP_CQ_RX_IP_CSUM_OK		= 1 << 0, /* IBV_EXP_DEVICE_RX_CSUM_IP_PKT or IBV_EXP_DEVICE_RX_CSUM_TCP_UDP_PKT */
@@ -1710,10 +1714,6 @@ enum ibv_exp_cq_family_flags {
 	IBV_EXP_CQ_RX_OUTER_TCP_UDP_CSUM_OK	= 1 << 6, /* IBV_EXP_DEVICE_VXLAN_SUPPORT */
 	IBV_EXP_CQ_RX_OUTER_IPV4_PACKET		= 1 << 7, /* IBV_EXP_DEVICE_VXLAN_SUPPORT */
 	IBV_EXP_CQ_RX_OUTER_IPV6_PACKET		= 1 << 8, /* IBV_EXP_DEVICE_VXLAN_SUPPORT */
-							/* The application can't use flag
-							 * Which is related device capabilities
-							 * flags is not set.
-							 */
 };
 
 struct ibv_exp_cq_family {
