@@ -66,6 +66,7 @@ enum {
 	IB_USER_VERBS_EXP_CMD_DESTROY_WQ,
 	IB_USER_VERBS_EXP_CMD_CREATE_RWQ_IND_TBL,
 	IB_USER_VERBS_EXP_CMD_DESTROY_RWQ_IND_TBL,
+	IB_USER_VERBS_EXP_CMD_CREATE_FLOW,
 };
 
 enum {
@@ -566,4 +567,32 @@ struct ibv_exp_destroy_rwq_ind_table {
 	__u32 ind_tbl_handle;
 };
 
+struct ibv_exp_kern_ipv6_filter {
+	__u8 src_ip[16];
+	__u8 dst_ip[16];
+};
+
+struct ibv_exp_kern_spec_ipv6 {
+	__u32  type;
+	__u16  size;
+	__u16 reserved;
+	struct ibv_exp_kern_ipv6_filter val;
+	struct ibv_exp_kern_ipv6_filter mask;
+};
+
+
+struct ibv_exp_kern_spec {
+	union {
+		struct {
+			__u32 type;
+			__u16 size;
+			__u16 reserved;
+		} hdr;
+		struct ibv_kern_spec_ib ib;
+		struct ibv_kern_spec_eth eth;
+		struct ibv_kern_spec_ipv4 ipv4;
+		struct ibv_kern_spec_tcp_udp tcp_udp;
+		struct ibv_exp_kern_spec_ipv6 ipv6;
+	};
+};
 #endif /* KERN_ABI_EXP_H */

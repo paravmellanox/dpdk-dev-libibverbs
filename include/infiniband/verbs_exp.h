@@ -1044,6 +1044,7 @@ enum ibv_exp_flow_spec_type {
 	IBV_EXP_FLOW_SPEC_ETH	= 0x20,
 	IBV_EXP_FLOW_SPEC_IB	= 0x21,
 	IBV_EXP_FLOW_SPEC_IPV4	= 0x30,
+	IBV_EXP_FLOW_SPEC_IPV6	= 0x31,
 	IBV_EXP_FLOW_SPEC_TCP	= 0x40,
 	IBV_EXP_FLOW_SPEC_UDP	= 0x41,
 };
@@ -1089,6 +1090,18 @@ struct ibv_exp_flow_spec_ipv4 {
 	struct ibv_exp_flow_ipv4_filter mask;
 };
 
+struct ibv_exp_flow_ipv6_filter {
+	uint8_t src_ip[16];
+	uint8_t dst_ip[16];
+};
+
+struct ibv_exp_flow_spec_ipv6 {
+	enum ibv_exp_flow_spec_type  type;
+	uint16_t  size;
+	struct ibv_exp_flow_ipv6_filter val;
+	struct ibv_exp_flow_ipv6_filter mask;
+};
+
 struct ibv_exp_flow_tcp_udp_filter {
 	uint16_t dst_port;
 	uint16_t src_port;
@@ -1111,6 +1124,7 @@ struct ibv_exp_flow_spec {
 		struct ibv_exp_flow_spec_eth eth;
 		struct ibv_exp_flow_spec_ipv4 ipv4;
 		struct ibv_exp_flow_spec_tcp_udp tcp_udp;
+		struct ibv_exp_flow_spec_ipv6 ipv6;
 	};
 };
 
