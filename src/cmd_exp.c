@@ -186,6 +186,23 @@ int ibv_exp_cmd_query_device(struct ibv_context *context,
 		comp_mask |= IBV_EXP_DEVICE_ATTR_MAX_DEVICE_CTX;
 	}
 
+	if ((device_attr->comp_mask & IBV_EXP_DEVICE_ATTR_MP_RQ) &&
+	    (resp.comp_mask & IBV_EXP_DEVICE_ATTR_MP_RQ)) {
+		device_attr->mp_rq_caps.allowed_shifts = resp.mp_rq_caps.allowed_shifts;
+		device_attr->mp_rq_caps.supported_qps = resp.mp_rq_caps.supported_qps;
+		device_attr->mp_rq_caps.max_single_stride_log_num_of_bytes = resp.mp_rq_caps.max_single_stride_log_num_of_bytes;
+		device_attr->mp_rq_caps.min_single_stride_log_num_of_bytes = resp.mp_rq_caps.min_single_stride_log_num_of_bytes;
+		device_attr->mp_rq_caps.max_single_wqe_log_num_of_strides = resp.mp_rq_caps.max_single_wqe_log_num_of_strides;
+		device_attr->mp_rq_caps.min_single_wqe_log_num_of_strides = resp.mp_rq_caps.min_single_wqe_log_num_of_strides;
+		comp_mask |= IBV_EXP_DEVICE_ATTR_MP_RQ;
+	}
+
+	if ((device_attr->comp_mask & IBV_EXP_DEVICE_ATTR_VLAN_OFFLOADS) &&
+	    (resp.comp_mask & IBV_EXP_DEVICE_ATTR_VLAN_OFFLOADS)) {
+		device_attr->wq_vlan_offloads_cap = resp.wq_vlan_offloads_cap;
+		comp_mask |= IBV_EXP_DEVICE_ATTR_VLAN_OFFLOADS;
+	}
+
 	device_attr->comp_mask = comp_mask;
 
 	return 0;
@@ -844,15 +861,37 @@ int ibv_exp_cmd_create_wq(struct ibv_context *context,
 			       EXP_CREATE_WQ, resp,
 			       resp_core_size, resp_size);
 
-	cmd->user_handle   = (uintptr_t)wq;
-	cmd->pd_handle           = wq_init_attr->pd->handle;
-	cmd->cq_handle   = wq_init_attr->cq->handle;
-	cmd->srq_handle  = wq_init_attr->srq ? wq_init_attr->srq->handle : -1;
+	cmd->user_handle = (uintptr_t)wq;
+	cmd->pd_handle = wq_init_attr->pd->handle;
+	cmd->cq_handle = wq_init_attr->cq->handle;
+	cmd->srq_handle = wq_init_attr->srq ? wq_init_attr->srq->handle : -1;
 	cmd->wq_type = wq_init_attr->wq_type;
 	cmd->max_recv_sge = wq_init_attr->max_recv_sge;
 	cmd->max_recv_wr = wq_init_attr->max_recv_wr;
 	cmd->reserved = 0;
 	cmd->comp_mask = 0;
+
+	if (wq_init_attr->comp_mask & IBV_EXP_CREATE_WQ_MP_RQ) {
+		if (cmd_core_size >= offsetof(struct ibv_exp_create_wq, mp_rq) +
+				     sizeof(struct ibv_exp_cmd_wq_mp_rq)) {
+			cmd->mp_rq.use_shift = wq_init_attr->mp_rq.use_shift;
+			cmd->mp_rq.single_stride_log_num_of_bytes = wq_init_attr->mp_rq.single_stride_log_num_of_bytes;
+			cmd->mp_rq.single_wqe_log_num_of_strides = wq_init_attr->mp_rq.single_wqe_log_num_of_strides;
+			cmd->mp_rq.reserved = 0;
+			cmd->comp_mask |= IBV_EXP_CMD_CREATE_WQ_MP_RQ;
+		} else {
+			/* Provider lib is not supporting Multi-Packet RQ */
+			return EINVAL;
+		}
+	}
+
+	if (wq_init_attr->comp_mask & IBV_EXP_CREATE_WQ_VLAN_OFFLOADS) {
+		if (cmd_core_size >= offsetof(struct ibv_exp_create_wq,
+					      wq_vlan_offloads) + sizeof(__u16)) {
+			cmd->wq_vlan_offloads = wq_init_attr->vlan_offloads;
+			cmd->comp_mask |= IBV_EXP_CMD_CREATE_WQ_VLAN_OFFLOADS;
+		}
+	}
 
 	err = write(context->cmd_fd, cmd, cmd_size);
 	if (err != cmd_size)
@@ -884,6 +923,8 @@ int ibv_exp_cmd_modify_wq(struct ibv_exp_wq *wq, struct ibv_exp_wq_attr *attr,
 	cmd->curr_wq_state = attr->curr_wq_state;
 	cmd->wq_state = attr->wq_state;
 	cmd->wq_handle = wq->handle;
+	if (attr->attr_mask & IBV_EXP_CREATE_WQ_VLAN_OFFLOADS)
+		cmd->wq_vlan_offloads = attr->vlan_offloads;
 	cmd->comp_mask = attr->attr_mask;
 
 	if (write(wq->context->cmd_fd, cmd, cmd_size) != cmd_size)

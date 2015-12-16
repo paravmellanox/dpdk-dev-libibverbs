@@ -154,8 +154,10 @@ enum ibv_exp_device_attr_comp_mask {
 	IBV_EXP_DEVICE_ATTR_RX_HASH		= (1 << 13),
 	IBV_EXP_DEVICE_ATTR_MAX_WQ_TYPE_RQ	= (1 << 14),
 	IBV_EXP_DEVICE_ATTR_MAX_DEVICE_CTX	= (1 << 15),
+	IBV_EXP_DEVICE_ATTR_MP_RQ		= (1 << 16),
+	IBV_EXP_DEVICE_ATTR_VLAN_OFFLOADS	= (1 << 17),
 	/* set supported bits for validity check */
-	IBV_EXP_DEVICE_ATTR_RESERVED		= (1 << 16),
+	IBV_EXP_DEVICE_ATTR_RESERVED		= (1 << 18),
 };
 
 struct ibv_exp_device_calc_cap {
@@ -211,6 +213,7 @@ enum ibv_exp_supported_qp_types {
 	IBV_EXP_QPT_XRC_INIT	= 1ULL << 3,
 	IBV_EXP_QPT_XRC_TGT	= 1ULL << 4,
 	IBV_EXP_QPT_RAW_PACKET	= 1ULL << 5,
+	IBV_EXP_QPT_RESERVED	= 1ULL << 6
 };
 
 struct ibv_exp_rx_hash_caps {
@@ -219,6 +222,20 @@ struct ibv_exp_rx_hash_caps {
 	uint8_t  supported_hash_functions; /* from ibv_exp_rx_hash_function_flags */
 	uint64_t supported_packet_fields;  /* from ibv_exp_rx_hash_fields */
 	uint32_t supported_qps;		   /* from ibv_exp_supported_qp_types */
+};
+
+enum ibv_exp_mp_rq_shifts {
+	IBV_EXP_MP_RQ_NO_SHIFT		= 0,
+	IBV_EXP_MP_RQ_2BYTES_SHIFT	= 1 << 0
+};
+
+struct ibv_exp_mp_rq_caps {
+	uint32_t supported_qps; /* use ibv_exp_supported_qp_types */
+	uint32_t allowed_shifts; /* use ibv_exp_mp_rq_shifts */
+	uint8_t min_single_wqe_log_num_of_strides;
+	uint8_t max_single_wqe_log_num_of_strides;
+	uint8_t min_single_stride_log_num_of_bytes;
+	uint8_t max_single_stride_log_num_of_bytes;
 };
 
 struct ibv_exp_device_attr {
@@ -279,6 +296,8 @@ struct ibv_exp_device_attr {
 	struct ibv_exp_rx_hash_caps	rx_hash_caps;
 	uint32_t			max_wq_type_rq;
 	int 				max_device_ctx;
+	struct ibv_exp_mp_rq_caps	mp_rq_caps;
+	uint16_t		wq_vlan_offloads_cap; /* use ibv_exp_vlan_offloads enum */
 };
 
 enum ibv_exp_access_flags {
@@ -1412,6 +1431,12 @@ enum ibv_exp_wq_state {
 	IBV_EXP_WQS_UNKNOWN
 };
 
+/* VLAN Stripping */
+enum ibv_exp_vlan_offloads {
+	IBV_EXP_RECEIVE_WQ_CVLAN_STRIP = (1 << 0), /* Represents C-VLAN stripping feature*/
+	IBV_EXP_RECEIVE_WQ_VLAN_OFFLOADS_RESERVED = (1 << 1),
+};
+
 /*
  * Work Queue. QP can be created without internal WQs "packaged" inside it,
  * this QPs can be configured to use "external" WQ object as its
@@ -1442,7 +1467,15 @@ struct ibv_exp_wq {
 
 enum ibv_exp_wq_init_attr_mask {
 	IBV_EXP_CREATE_WQ_RES_DOMAIN	= (1 << 0),
-	IBV_EXP_CREATE_WQ_RESERVED	= (1 << 1)
+	IBV_EXP_CREATE_WQ_MP_RQ		= (1 << 1),
+	IBV_EXP_CREATE_WQ_VLAN_OFFLOADS = (1 << 2),
+	IBV_EXP_CREATE_WQ_RESERVED	= (1 << 3)
+};
+
+struct ibv_exp_wq_mp_rq {
+	enum ibv_exp_mp_rq_shifts	use_shift;
+	uint8_t				single_wqe_log_num_of_strides;
+	uint8_t				single_stride_log_num_of_bytes;
 };
 
 struct ibv_exp_wq_init_attr {
@@ -1462,12 +1495,15 @@ struct ibv_exp_wq_init_attr {
 	/* refers to ibv_exp_wq_init_attr_mask */
 	uint32_t		comp_mask;
 	struct ibv_exp_res_domain *res_domain;
+	struct ibv_exp_wq_mp_rq	mp_rq;
+	uint16_t		vlan_offloads; /* use ibv_exp_vlan_offloads enum */
 };
 
 enum ibv_exp_wq_attr_mask {
 	IBV_EXP_WQ_ATTR_STATE		= 1 << 0,
 	IBV_EXP_WQ_ATTR_CURR_STATE	= 1 << 1,
-	IBV_EXP_WQ_ATTR_RESERVED	= 1 << 2
+	IBV_EXP_WQ_ATTR_VLAN_OFFLOADS	= 1 << 2,
+	IBV_EXP_WQ_ATTR_RESERVED	= 1 << 3
 };
 
 struct ibv_exp_wq_attr {
@@ -1477,6 +1513,7 @@ struct ibv_exp_wq_attr {
 	enum	ibv_exp_wq_state	wq_state;
 	/* Assume this is the current RQ state */
 	enum	ibv_exp_wq_state	curr_wq_state;
+	uint16_t		vlan_offloads; /* use ibv_exp_vlan_offloads enum */
 };
 
 /*
@@ -1716,6 +1753,7 @@ struct ibv_exp_wq_family {
 
 /* CQ family */
 enum ibv_exp_cq_family_flags {
+	/* RX offloads flags */
 							/* The cq_family_flags are applicable
 							 * according to the existence of the
 							 * related device capabilities flags */
@@ -1728,9 +1766,25 @@ enum ibv_exp_cq_family_flags {
 	IBV_EXP_CQ_RX_OUTER_TCP_UDP_CSUM_OK	= 1 << 6, /* IBV_EXP_DEVICE_VXLAN_SUPPORT */
 	IBV_EXP_CQ_RX_OUTER_IPV4_PACKET		= 1 << 7, /* IBV_EXP_DEVICE_VXLAN_SUPPORT */
 	IBV_EXP_CQ_RX_OUTER_IPV6_PACKET		= 1 << 8, /* IBV_EXP_DEVICE_VXLAN_SUPPORT */
+
+	/* Flags supported from CQ family version 1 */
+	/* Multi-Packet RQ flag */
+	IBV_EXP_CQ_RX_MULTI_PACKET_LAST_V1	= 1 << 9, /* Last packet on WR */
+	/* CVLAN stripping RQ flag */
+	IBV_EXP_CQ_RX_CVLAN_STRIPPED_V1		= 1 << 10, /*
+							    * When set, CVLAN is stripped
+							    * from incoming packets.
+							    */
 };
 
+/* All functions of CQ family included in CQ family version 1 */
 struct ibv_exp_cq_family {
+	int32_t (*poll_cnt)(struct ibv_cq *cq, uint32_t max);
+	int32_t (*poll_length)(struct ibv_cq *cq, void *buf, uint32_t *inl);
+	int32_t (*poll_length_flags)(struct ibv_cq *cq, void *buf, uint32_t *inl, uint32_t *flags);
+};
+
+struct ibv_exp_cq_family_v1 {
 	/*
 	 * poll_cnt - Poll up to 'max' valid completions
 	 *
@@ -1745,6 +1799,9 @@ struct ibv_exp_cq_family {
 	 *    n >= 0 : number extracted completions.
 	 *    n == -1 : operation failed. completion is not extracted.
 	 *              To extract this completion, ibv_poll_cq() must be used
+	 *
+	 * Note: The function designed to support TX completion, it may also be
+	 *    used for RX completion but it is not supporting RX inline-scatter.
 	 */
 	int32_t (*poll_cnt)(struct ibv_cq *cq, uint32_t max);
 	/*
@@ -1779,6 +1836,46 @@ struct ibv_exp_cq_family {
 	 * defined by the enum ibv_exp_cq_family_flags
 	 */
 	int32_t (*poll_length_flags)(struct ibv_cq *cq, void *buf, uint32_t *inl, uint32_t *flags);
+	/*
+	 * poll_length_flags_mp_rq - Poll one receive completion and provide the related
+	 *                           message length, packet-offset and completion flags.
+	 *
+	 * The same as poll_length_flags but:
+	 *  - Without the inline-receive support.
+	 *  - Also retrieves offset in the WR posted buffer as defined by the WR SG list.
+	 *    The start of the received packet is located in this offset.
+	 */
+	int32_t (*poll_length_flags_mp_rq)(struct ibv_cq *cq, uint32_t *offset, uint32_t *flags);
+	/*
+	 * poll_length_flags_cvlan - Poll one receive completion and provide the
+	 *			     related message length, completion flags
+	 *			     and CVLAN TCI.
+	 *			     The CVLAN TCI value is valid only when
+	 *			     IBV_EXP_CQ_RX_CVLAN_STRIPPED_V1 flag is
+	 *			     set.
+	 *
+	 * The same as poll_length_flags but:
+	 *  - Also retrievs the packet's CVLAN TCI that was stripped by the HW.
+	 */
+	int32_t (*poll_length_flags_cvlan)(struct ibv_cq *cq, void *buf,
+					   uint32_t *inl, uint32_t *flags,
+					   uint16_t *vlan_tci);
+	/*
+	 * poll_length_flags_mp_rq_cvlan - Poll one receive completion and provide
+	 *				   the related message length,
+	 *				   packet-offset, completion flags and
+	 *				   CVLAN TCI
+	 *
+	 * The same as poll_length_flags_cvlan but:
+	 *  - Without the inline-receive support.
+	 *  - Also retrives offset in the WR posted buffer as defined by the
+	 *    WR SG list. The start of the received packet is located in this
+	 *    offset.
+	 */
+	int32_t (*poll_length_flags_mp_rq_cvlan)(struct ibv_cq *cq,
+						 uint32_t *offset,
+						 uint32_t *flags,
+						 uint16_t *vlan_tci);
 };
 
 enum {

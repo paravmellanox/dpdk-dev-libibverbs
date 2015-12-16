@@ -212,6 +212,16 @@ struct ibv_exp_rx_hash_caps_resp {
 	__u8	reserved[3];
 };
 
+struct ibv_exp_mp_rq_caps_resp {
+	__u32	supported_qps; /* use ibv_exp_supported_qp_types */
+	__u32	allowed_shifts; /* use ibv_exp_mp_rq_shifts */
+	__u8	min_single_wqe_log_num_of_strides;
+	__u8	max_single_wqe_log_num_of_strides;
+	__u8	min_single_stride_log_num_of_bytes;
+	__u8	max_single_stride_log_num_of_bytes;
+	__u32	reserved;
+};
+
 struct ibv_exp_query_device_resp {
 	__u64 comp_mask;
 	__u64 fw_ver;
@@ -272,6 +282,9 @@ struct ibv_exp_query_device_resp {
 	struct ibv_exp_rx_hash_caps_resp rx_hash;
 	__u32 max_wq_type_rq;
 	__u32 max_device_ctx;
+	struct ibv_exp_mp_rq_caps_resp mp_rq_caps;
+	__u16 wq_vlan_offloads_cap;
+	__u8 reserved1[6];
 };
 
 struct ibv_exp_create_dct {
@@ -506,9 +519,21 @@ struct ibv_exp_rereg_mr_resp {
 	__u32 reserved;
 };
 
+struct ibv_exp_cmd_wq_mp_rq {
+	__u32 use_shift; /* use ibv_exp_mp_rq_shifts */
+	__u8  single_wqe_log_num_of_strides;
+	__u8  single_stride_log_num_of_bytes;
+	__u16 reserved;
+};
+
+enum ibv_exp_cmd_create_wq_comp_mask {
+	IBV_EXP_CMD_CREATE_WQ_MP_RQ		= 1 << 0,
+	IBV_EXP_CMD_CREATE_WQ_VLAN_OFFLOADS	= 1 << 1,
+};
+
 struct ibv_exp_create_wq {
 	struct ex_hdr hdr;
-	__u32 comp_mask;
+	__u32 comp_mask; /* enum ibv_exp_cmd_create_wq_comp_mask */
 	__u32 wq_type; /* enum ibv_exp_wq_type */
 	__u64 user_handle;
 	__u32 pd_handle;
@@ -517,6 +542,9 @@ struct ibv_exp_create_wq {
 	__u32 max_recv_wr;
 	__u32 max_recv_sge;
 	__u32 reserved;
+	struct ibv_exp_cmd_wq_mp_rq mp_rq;
+	__u16 wq_vlan_offloads;
+	__u8 reserved1[6];
 };
 
 struct ibv_exp_create_wq_resp {
@@ -540,6 +568,8 @@ struct ib_exp_modify_wq  {
 	__u32 wq_handle;
 	__u32 wq_state;
 	__u32 curr_wq_state;
+	__u16 wq_vlan_offloads;
+	__u8 reserved[6];
 };
 
 struct ibv_exp_create_rwq_ind_table {

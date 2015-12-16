@@ -73,11 +73,13 @@ int                     inline_recv_sz;         /* Inline receive size*/
 uint32_t                max_rss_tbl_sz;         /* Max RSS table size*/
 struct ibv_exp_ext_atomics_params ext_atom;     /* Extended Atomics params */
 struct ibv_exp_umr_caps umr_caps;               /* UMR capabilities */
-struct ibv_exp_odp_caps	odp_caps;              /* On-Demand Paging capabilities */
+struct ibv_exp_odp_caps	odp_caps;               /* On-Demand Paging capabilities */
 int                     max_dct;                /* Max DC targets */
 int                     max_ctx_res_domain;     /* Max context resource domain */
 struct ibv_exp_rx_hash_caps rx_hash_caps;       /* RX hash capabilities */
 uint32_t                    max_wq_type_rq;     /* Max Work Queue from type RQ */
+int                         max_device_ctx;     /* Maximum device contexts */
+struct ibv_exp_mp_rq_caps   mp_rq_caps;         /* Multi-Packet Receive Queue(RQ) capabilities */
 .in -8
 };
 
@@ -120,6 +122,17 @@ uint32_t                supported_qps;                  /* Mask with enum ibv_ex
 .in -8
 };
 
+struct ibv_exp_mp_rq_caps {
+.in +8
+uint32_t                supported_qps;                      /* Mask with enum ibv_exp_supported_qp_types to know which QP types support MP RQ */
+uint32_t                allowed_shifts;                     /* Mask with enum ibv_exp_mp_rq_shifts to know which payload shifts are supported */
+uint8_t                 min_single_wqe_log_num_of_strides;  /* Log of minimum number of strides for single WQE */
+uint8_t                 max_single_wqe_log_num_of_strides;  /* Log of maximum number of strides for single WQE */
+uint8_t                 min_single_stride_log_num_of_bytes; /* Log of minimum number of bytes in single stride */
+uint8_t                 max_single_stride_log_num_of_bytes; /* Log of maximum number of bytes in single stride */
+.in -8
+};
+
 
 .fi
 .SH "RETURN VALUE"
@@ -140,3 +153,5 @@ in use by other users/processes.
 .SH "AUTHORS"
 .TP
 Majd Dibbiny <majd@mellanox.com>
+.TP
+Moshe Lazer <moshel@mellanox.com>

@@ -204,9 +204,20 @@ enum ibv_exp_cq_family_flags {
 	IBV_EXP_CQ_RX_OUTER_TCP_UDP_CSUM_OK	= 1 << 6, /* IBV_EXP_DEVICE_VXLAN_SUPPORT */
 	IBV_EXP_CQ_RX_OUTER_IPV4_PACKET		= 1 << 7, /* IBV_EXP_DEVICE_VXLAN_SUPPORT */
 	IBV_EXP_CQ_RX_OUTER_IPV6_PACKET		= 1 << 8, /* IBV_EXP_DEVICE_VXLAN_SUPPORT */
+
+	/* Flags supported from CQ family version 1 */
+	/* Multi-Packet RQ flag */
+	IBV_EXP_CQ_RX_MULTI_PACKET_LAST_V1	= 1 << 9, /* Last packet on WR */
 };
 
+/* All functions of CQ family included in CQ family version 1 */
 struct ibv_exp_cq_family {
+	int32_t (*poll_cnt)(struct ibv_cq *cq, uint32_t max);
+	int32_t (*poll_length)(struct ibv_cq *cq, void *buf, uint32_t *inl);
+	int32_t (*poll_length_flags)(struct ibv_cq *cq, void *buf, uint32_t *inl, uint32_t *flags);
+};
+
+struct ibv_exp_cq_family_v1 {
 	/*
 	 * poll_cnt - Poll up to 'max' valid completions
 	 *
@@ -255,6 +266,15 @@ struct ibv_exp_cq_family {
 	 * defined by the enum ibv_exp_cq_family_flags
 	 */
 	int32_t (*poll_length_flags)(struct ibv_cq *cq, void *buf, uint32_t *inl, uint32_t *flags);
+	/*
+	 * poll_length_flags_mp_rq - Poll one receive completion and provide the related
+	 *                           message length, packet-offset and completion flags.
+	 *
+	 * The same as poll_length_flags but:
+	 *  - Without the inline-receive support.
+	 *  - Also retrieves packet-offset (for multi-packet RQ).
+	 */
+	int32_t (*poll_length_flags_mp_rq)(struct ibv_cq *cq, uint32_t *offset, uint32_t *flags);
 };
 .fi
 
