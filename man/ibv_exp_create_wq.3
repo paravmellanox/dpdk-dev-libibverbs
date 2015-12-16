@@ -32,8 +32,18 @@ struct  ibv_cq            *cq;            /* CQ to be associated with the WQ */
 struct  ibv_srq           *srq;           /* SRQ handle if WQ is of type IBV_EXP_WQT_SRQ, otherwise NULL */
 uint32_t                   comp_mask;     /* Identifies valid fields. Use ibv_exp_wq_init_attr_mask */
 struct ibv_exp_res_domain *res_domain;    /* Provides resource domain to indicate the WQ threading and message model */
+struct ibv_exp_wq_mp_rq    mp_rq;         /* Provides multi-packet data for receive WQ */
 .in -8
 };
+
+struct ibv_exp_wq_mp_rq {
+.in +8
+enum ibv_exp_mp_rq_shifts use_shift;      /* Shift to use for received payload */
+uint8_t   single_wqe_log_num_of_strides;  /* Log of number of strides for single WQE */
+uint8_t   single_stride_log_num_of_bytes; /* Log of number of bytes in single stride */
+.in -8
+};
+
 .fi
 .PP
 The function

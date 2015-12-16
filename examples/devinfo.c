@@ -388,6 +388,19 @@ void print_odp_caps(struct ibv_exp_odp_caps caps)
 	print_odp_trans_caps(caps.per_transport_caps.raw_eth_odp_caps);
 }
 
+static char *qp_type_flag_str(enum ibv_exp_supported_qp_types qp_type_flag)
+{
+	switch (qp_type_flag) {
+	case IBV_EXP_QPT_RC:		return "RC";
+	case IBV_EXP_QPT_UC:		return "UC";
+	case IBV_EXP_QPT_UD:		return "UD";
+	case IBV_EXP_QPT_XRC_INIT:	return "XRC_INIT";
+	case IBV_EXP_QPT_XRC_TGT:	return "XRC_TGT";
+	case IBV_EXP_QPT_RAW_PACKET:	return "RAW_PACKET";
+	default:			return "UNKNOWN";
+	}
+}
+
 static int print_hca_cap(struct ibv_device *ib_dev, uint8_t ib_port)
 {
 	struct ibv_context *ctx;
@@ -493,8 +506,50 @@ static int print_hca_cap(struct ibv_device *ib_dev, uint8_t ib_port)
 		print_odp_caps(device_attr.odp_caps);
 		printf("\tmax_dct:\t\t\t%d\n", device_attr.max_dct);
 		printf("\tmax_device_ctx:\t\t\t%d\n", device_attr.max_device_ctx);
+		if ((device_attr.comp_mask & IBV_EXP_DEVICE_ATTR_MP_RQ) &&
+		    device_attr.mp_rq_caps.supported_qps) {
+			enum ibv_exp_supported_qp_types qp_type_flag = IBV_EXP_QPT_RC;
+			uint32_t unknown_shifts_flags = device_attr.mp_rq_caps.allowed_shifts &
+							~IBV_EXP_MP_RQ_2BYTES_SHIFT;
+
+			printf("\tMulti-Packet RQ supported\n");
+			printf("\t\tSupported for QP types: ");
+			while (qp_type_flag < IBV_EXP_QPT_RESERVED) {
+				if (device_attr.mp_rq_caps.supported_qps & qp_type_flag)
+					printf("%s ", qp_type_flag_str(qp_type_flag));
+				qp_type_flag <<= 1;
+			}
+			printf("\n");
+			printf("\t\tSupported payload shifts:\n");
+			if (device_attr.mp_rq_caps.allowed_shifts & IBV_EXP_MP_RQ_2BYTES_SHIFT)
+				printf("\t\t\t2 bytes\n");
+			if (unknown_shifts_flags)
+				printf("\t\t\tUnknown payload shift flags (0x%x)\n", unknown_shifts_flags);
+			printf("\t\tLog number of strides for single WQE: %d - %d\n",
+			       device_attr.mp_rq_caps.min_single_wqe_log_num_of_strides,
+			       device_attr.mp_rq_caps.max_single_wqe_log_num_of_strides);
+			printf("\t\tLog number of bytes in single stride: %d - %d\n",
+			       device_attr.mp_rq_caps.min_single_stride_log_num_of_bytes,
+			       device_attr.mp_rq_caps.max_single_stride_log_num_of_bytes);
+		} else {
+			printf("\tMulti-Packet RQ is not supported\n");
+		}
+		if (device_attr.comp_mask & IBV_EXP_DEVICE_ATTR_VLAN_OFFLOADS) {
+			uint32_t unknown_vlan_caps;
+			printf("\n\tVLAN offloads caps:\n");
+			if (device_attr.wq_vlan_offloads_cap &
+			    IBV_EXP_RECEIVE_WQ_CVLAN_STRIP)
+				printf("\t\t\t\t\tC-VLAN stripping offload\n");
+			unknown_vlan_caps = device_attr.wq_vlan_offloads_cap &
+				~IBV_EXP_RECEIVE_WQ_CVLAN_STRIP;
+			if (unknown_vlan_caps)
+				printf("\tVLAN offloads unknown caps:\t\t0x%x\n",
+				       unknown_vlan_caps);
+		}
 	}
 
+	if (device_attr.phys_port_cnt)
+		printf("\tDevice ports:\n");
 	for (port = 1; port <= device_attr.phys_port_cnt; ++port) {
 		/* if in the command line the user didn't ask for info about this port */
 		if ((ib_port) && (port != ib_port))
