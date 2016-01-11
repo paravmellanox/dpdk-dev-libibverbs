@@ -1478,7 +1478,8 @@ enum ibv_exp_wq_init_attr_mask {
 	IBV_EXP_CREATE_WQ_RES_DOMAIN	= (1 << 0),
 	IBV_EXP_CREATE_WQ_MP_RQ		= (1 << 1),
 	IBV_EXP_CREATE_WQ_VLAN_OFFLOADS = (1 << 2),
-	IBV_EXP_CREATE_WQ_RESERVED	= (1 << 3)
+	IBV_EXP_CREATE_WQ_BUFS_INIT     = (1 << 3),
+	IBV_EXP_CREATE_WQ_RESERVED	= (1 << 4)
 };
 
 struct ibv_exp_wq_mp_rq {
@@ -1506,6 +1507,8 @@ struct ibv_exp_wq_init_attr {
 	struct ibv_exp_res_domain *res_domain;
 	struct ibv_exp_wq_mp_rq	mp_rq;
 	uint16_t		vlan_offloads; /* use ibv_exp_vlan_offloads enum */
+	uint32_t bufs_mkey; /* Memory region key. */
+	uint32_t bufs_length; /* buffer size. */
 };
 
 enum ibv_exp_wq_attr_mask {
@@ -1758,6 +1761,33 @@ struct ibv_exp_wq_family {
 	 * Note: One sge per message is supported by this function
 	 */
 	int (*recv_burst)(struct ibv_exp_wq *wq, struct ibv_sge *msg_list, uint32_t num);
+};
+
+/* WQ family */
+struct ibv_exp_wq_family_v1 {
+	/*
+	 * recv_sg_list - Post one scatter-gather(sg) receive buffer.
+	 *
+	 * Note:
+	 *  - The number of sg entries must fit the max_recv_sge of the WQ.
+	 *    Providing bigger list of sg entries may lead to data corruption and
+	 *    segmentation fault.
+	 */
+	int (*recv_sg_list)(struct ibv_exp_wq *wq, struct ibv_sge *sg_list, uint32_t num_sg);
+	/*
+	 * recv_burst - Post a set of 'num' receive buffers.
+	 *
+	 * Note: One sge per message is supported by this function
+	 */
+	int (*recv_burst)(struct ibv_exp_wq *wq, struct ibv_sge *msg_list, uint32_t num);
+	/**
+	 * recv_pending - Add a new segment to the hardware.
+	 */
+	int (*recv_pending)(struct ibv_exp_wq *wq, uintptr_t addr);
+	/**
+	 * recv_flush - ring the doorbell.
+	 */
+	void (*recv_flush)(struct ibv_exp_wq *wq);
 };
 
 /* CQ family */
@@ -3129,6 +3159,12 @@ static inline struct ibv_exp_wq *ibv_exp_create_wq(struct ibv_context *context,
 
 	IBV_EXP_RET_NULL_ON_INVALID_COMP_MASK(wq_init_attr->comp_mask,
 							IBV_EXP_CREATE_WQ_RESERVED - 1);
+
+	if ((wq_init_attr->comp_mask & IBV_EXP_CREATE_WQ_BUFS_INIT) &&
+	    (wq_init_attr->max_recv_sge != 1)) {
+		errno = ENOSYS;
+		return NULL;
+	}
 
 	return vctx->exp_create_wq(context, wq_init_attr);
 }
