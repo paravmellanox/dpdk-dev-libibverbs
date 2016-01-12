@@ -1885,6 +1885,24 @@ struct ibv_exp_cq_family_v1 {
 						 uint32_t *offset,
 						 uint32_t *flags,
 						 uint16_t *vlan_tci);
+	/**
+	 * poll_length_no_update - Poll a CQE for a RWQ queue type, doorbell is
+	 *                        not ringed and must be done with
+	 *                        update_cons_index().
+	 */
+	int32_t (*poll_length_no_update)(struct ibv_cq *cq, uint32_t *flags);
+	/**
+	 * poll_length_no_update_cvlan - Poll a CQE for a RWQ queue type,
+	 *                              doorbell is not ringed and must be
+	 *                              done with update_cons_index().
+	 */
+	int32_t (*poll_length_cvlan_no_update)(struct ibv_cq *cq,
+					      uint32_t *flags,
+					      uint16_t *vlan_cti);
+	/**
+	 * update_cons_index - ring the doorbell for the queue.
+	 */
+	void (*update_cq)(struct ibv_cq *cq);
 };
 
 enum {
