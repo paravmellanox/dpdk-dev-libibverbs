@@ -25,6 +25,7 @@ struct ibv_exp_wq_attr {
 uint32_t                attr_mask;     /* Use enum ibv_exp_wq_attr_mask */
 enum ibv_exp_wq_state   wq_state;      /* Move to this state */
 enum ibv_exp_wq_state   curr_wq_state; /* Assume this is the current state */
+uint16_t                vlan_offloads; /* Change WQ's VLAN offloading behaviour */
 .in -8
 };
 .fi
@@ -41,3 +42,5 @@ returns 0 on success, or the value of errno on failure (which indicates the fail
 .SH "AUTHORS"
 .TP
 Yishai Hadas <yishaih@mellanox.com>
+.TP
+Noa Osherovich <noaos@mellanox.com>

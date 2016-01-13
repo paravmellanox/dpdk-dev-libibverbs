@@ -203,6 +203,15 @@ int ibv_exp_cmd_query_device(struct ibv_context *context,
 		comp_mask |= IBV_EXP_DEVICE_ATTR_VLAN_OFFLOADS;
 	}
 
+	if ((device_attr->comp_mask & IBV_EXP_DEVICE_ATTR_EC_CAPS) &&
+	    (resp.comp_mask & IBV_EXP_DEVICE_ATTR_EC_CAPS)) {
+		device_attr->ec_caps.max_ec_calc_inflight_calcs =
+				resp.ec_caps.max_ec_calc_inflight_calcs;
+		device_attr->ec_caps.max_ec_data_vector_count =
+				resp.ec_caps.max_ec_data_vector_count;
+		comp_mask |= IBV_EXP_DEVICE_ATTR_MAX_DEVICE_CTX;
+	}
+
 	device_attr->comp_mask = comp_mask;
 
 	return 0;

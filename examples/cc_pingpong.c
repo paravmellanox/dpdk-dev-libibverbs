@@ -137,6 +137,10 @@ struct pingpong_context {
 	uint64_t		 last_result;
 
 	struct pingpong_calc_ctx calc_op;
+
+	int use_grh;
+	int gid_index;
+	union ibv_gid dgid;
 };
 
 struct pingpong_dest {
@@ -468,13 +472,18 @@ static int pp_connect_ctx(struct pingpong_context *ctx,
 		.max_dest_rd_atomic	= 1,
 		.min_rnr_timer		= 12,
 		.ah_attr		= {
-			.is_global	= 0,
+			.is_global	= !!ctx->use_grh,
 			.dlid		= dest->lid,
 			.sl		= sl,
 			.src_path_bits	= 0,
-			.port_num	= port
+			.port_num	= port,
 		}
 	};
+	if (ctx->use_grh) {
+		attr.ah_attr.grh.sgid_index = ctx->gid_index;
+		attr.ah_attr.grh.hop_limit = 1;
+		attr.ah_attr.grh.dgid = ctx->dgid;
+	}
 
 	if (ibv_modify_qp(qp, &attr,
 			  IBV_QP_STATE			|
@@ -1296,6 +1305,8 @@ static void usage(const char *argv0)
 	printf("  -w, --wait_cq=cqn		wait for entries on cq\n");
 	printf("  -v, --verbose			print verbose information\n");
 	printf("  -V, --verify			verify calc operations\n");
+	printf("  -g, --gid-index		gid index\n");
+	printf("  -G, --dgid			remote gid, must be given if -g is used\n");
 }
 
 int main(int argc, char *argv[])
@@ -1330,7 +1341,9 @@ int main(int argc, char *argv[])
 	enum		pp_wr_calc_op	calc_opcode = PP_CALC_INVALID;
 	char		*calc_operands_str = NULL;
 	struct		ibv_wc wc[2];
-	int		ne, i, ret = 0;
+	int		ne, i, use_grh = 0, ret = 0, dgid_provided = 0;
+	int		gid_index = 0;
+	union		ibv_gid dgid;
 
 	srand48(getpid() * time(NULL));
 
@@ -1355,10 +1368,12 @@ int main(int argc, char *argv[])
 			{ .name = "poll_mqe",   .has_arg = 0, .val = 'w' },
 			{ .name = "verbose",	.has_arg = 0, .val = 'v' },
 			{ .name = "verify",	.has_arg = 0, .val = 'V' },
+			{ .name = "gid-index",	.has_arg = 1, .val = 'g' },
+			{ .name = "dgid",	.has_arg = 1, .val = 'G' },
 			{ 0 }
 		};
 
-		c = getopt_long(argc, argv, "p:d:i:s:m:r:n:l:et:c:o:wfvV", long_options, NULL);
+		c = getopt_long(argc, argv, "p:d:i:s:m:r:n:l:et:c:o:wfvVg:G:", long_options, NULL);
 		if (c == -1)
 			break;
 
@@ -1449,10 +1464,33 @@ int main(int argc, char *argv[])
 			mqe_poll = 1;
 			break;
 
+		case 'g':
+			gid_index = strtol(optarg, NULL, 0);
+			if (gid_index < 0) {
+				usage(argv[0]);
+				return 1;
+			}
+			use_grh = 1;
+			break;
+
+		case 'G':
+			if (!inet_pton(AF_INET6, optarg, &dgid.raw)) {
+				printf("%pI6\n", optarg);
+				usage(argv[0]);
+				return 1;
+			}
+			dgid_provided = 1;
+			break;
+
 		default:
 			usage(argv[0]);
 			return 1;
 		}
+	}
+
+	if (use_grh && !dgid_provided) {
+		fprintf(stderr, "GRH should be used but remote GID was not provided\n");
+		return EINVAL;
 	}
 
 	memset(&params, 0, sizeof(params));
@@ -1503,6 +1541,9 @@ int main(int argc, char *argv[])
 	if (!ctx)
 		return 1;
 
+	ctx->gid_index = gid_index;
+	ctx->use_grh = use_grh;
+	memcpy(&ctx->dgid.raw, &dgid.raw, sizeof(union ibv_gid));
 	if (servername)
 		pp_update_last_result(ctx, calc_data_type, calc_opcode);
 	else
