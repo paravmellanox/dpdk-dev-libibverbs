@@ -80,6 +80,7 @@ struct ibv_exp_rx_hash_caps rx_hash_caps;       /* RX hash capabilities */
 uint32_t                    max_wq_type_rq;     /* Max Work Queue from type RQ */
 int                         max_device_ctx;     /* Maximum device contexts */
 struct ibv_exp_mp_rq_caps   mp_rq_caps;         /* Multi-Packet Receive Queue(RQ) capabilities */
+uint16_t                wq_vlan_offloads_cap;   /* VLAN offloads capabilities */
 .in -8
 };
 
@@ -155,3 +156,5 @@ in use by other users/processes.
 Majd Dibbiny <majd@mellanox.com>
 .TP
 Moshe Lazer <moshel@mellanox.com>
+.TP
+Noa Osherovich <noaos@mellanox.com>

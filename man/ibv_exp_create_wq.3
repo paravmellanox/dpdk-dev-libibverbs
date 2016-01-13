@@ -33,6 +33,7 @@ struct  ibv_srq           *srq;           /* SRQ handle if WQ is of type IBV_EXP
 uint32_t                   comp_mask;     /* Identifies valid fields. Use ibv_exp_wq_init_attr_mask */
 struct ibv_exp_res_domain *res_domain;    /* Provides resource domain to indicate the WQ threading and message model */
 struct ibv_exp_wq_mp_rq    mp_rq;         /* Provides multi-packet data for receive WQ */
+uint16_t                  vlan_offloads;  /* Provide VLAN offload support for receive WQ */
 .in -8
 };
 
@@ -74,3 +75,5 @@ if the WQ is to be associated with an SRQ.
 .SH "AUTHORS"
 .TP
 Yishai Hadas <yishaih@mellanox.com>
+.TP
+Noa Osherovich <noaos@mellanox.com>

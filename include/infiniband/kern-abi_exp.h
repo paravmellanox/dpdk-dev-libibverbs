@@ -222,6 +222,11 @@ struct ibv_exp_mp_rq_caps_resp {
 	__u32	reserved;
 };
 
+struct ibv_exp_ec_caps_resp {
+        __u32        max_ec_data_vector_count;
+        __u32        max_ec_calc_inflight_calcs;
+};
+
 struct ibv_exp_query_device_resp {
 	__u64 comp_mask;
 	__u64 fw_ver;
@@ -285,6 +290,7 @@ struct ibv_exp_query_device_resp {
 	struct ibv_exp_mp_rq_caps_resp mp_rq_caps;
 	__u16 wq_vlan_offloads_cap;
 	__u8 reserved1[6];
+	struct ibv_exp_ec_caps_resp ec_caps;
 };
 
 struct ibv_exp_create_dct {

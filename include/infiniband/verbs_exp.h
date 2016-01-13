@@ -122,6 +122,7 @@ enum ibv_exp_device_cap_flags {
 	IBV_EXP_DEVICE_VXLAN_SUPPORT		= (IBV_EXP_START_FLAG << 10),
 	IBV_EXP_DEVICE_RX_CSUM_TCP_UDP_PKT	= (IBV_EXP_START_FLAG << 11),
 	IBV_EXP_DEVICE_RX_CSUM_IP_PKT		= (IBV_EXP_START_FLAG << 12),
+	IBV_EXP_DEVICE_EC_OFFLOAD		= (IBV_EXP_START_FLAG << 13),
 	IBV_EXP_DEVICE_MEM_WINDOW		= (IBV_EXP_START_FLAG << 17),
 	IBV_EXP_DEVICE_MEM_MGT_EXTENSIONS	= (IBV_EXP_START_FLAG << 21),
 	IBV_EXP_DEVICE_DC_INFO			= (IBV_EXP_START_FLAG << 22),
@@ -156,8 +157,9 @@ enum ibv_exp_device_attr_comp_mask {
 	IBV_EXP_DEVICE_ATTR_MAX_DEVICE_CTX	= (1 << 15),
 	IBV_EXP_DEVICE_ATTR_MP_RQ		= (1 << 16),
 	IBV_EXP_DEVICE_ATTR_VLAN_OFFLOADS	= (1 << 17),
+	IBV_EXP_DEVICE_ATTR_EC_CAPS		= (1 << 18),
 	/* set supported bits for validity check */
-	IBV_EXP_DEVICE_ATTR_RESERVED		= (1 << 18),
+	IBV_EXP_DEVICE_ATTR_RESERVED		= (1 << 19),
 };
 
 struct ibv_exp_device_calc_cap {
@@ -238,6 +240,11 @@ struct ibv_exp_mp_rq_caps {
 	uint8_t max_single_stride_log_num_of_bytes;
 };
 
+struct ibv_exp_ec_caps {
+	uint32_t	max_ec_data_vector_count;
+	uint32_t	max_ec_calc_inflight_calcs;
+};
+
 struct ibv_exp_device_attr {
 	char			fw_ver[64];
 	uint64_t		node_guid;
@@ -298,6 +305,7 @@ struct ibv_exp_device_attr {
 	int 				max_device_ctx;
 	struct ibv_exp_mp_rq_caps	mp_rq_caps;
 	uint16_t		wq_vlan_offloads_cap; /* use ibv_exp_vlan_offloads enum */
+	struct ibv_exp_ec_caps         ec_caps;
 };
 
 enum ibv_exp_access_flags {
@@ -820,8 +828,9 @@ enum ibv_exp_qp_create_flags {
 	IBV_EXP_QP_CREATE_IGNORE_RQ_OVERFLOW   = (1 << 7),
 	IBV_EXP_QP_CREATE_ATOMIC_BE_REPLY      = (1 << 8),
 	IBV_EXP_QP_CREATE_UMR		       = (1 << 9),
+	IBV_EXP_QP_CREATE_EC_PARITY_EN	       = (1 << 10),
 	/* set supported bits for validity check */
-	IBV_EXP_QP_CREATE_MASK                 = (0x000003DC)
+	IBV_EXP_QP_CREATE_MASK                 = (0x000007DC)
 };
 
 struct ibv_exp_qp_init_attr {
@@ -1905,8 +1914,124 @@ struct ibv_exp_gid_attr {
 	union ibv_gid			gid;
 };
 
+/**
+ * enum ibv_exp_ec_calc_attr_comp_mask - erasure coding context
+ *    init attributes compatibility enumeration
+ */
+enum ibv_exp_ec_calc_attr_comp_mask {
+	IBV_EXP_EC_CALC_ATTR_MAX_INFLIGHT	= (1 << 0),
+	IBV_EXP_EC_CALC_ATTR_K			= (1 << 1),
+	IBV_EXP_EC_CALC_ATTR_M			= (1 << 2),
+	IBV_EXP_EC_CALC_ATTR_W			= (1 << 3),
+	IBV_EXP_EC_CALC_ATTR_MAX_DATA_SGE	= (1 << 4),
+	IBV_EXP_EC_CALC_ATTR_MAX_CODE_SGE	= (1 << 5),
+	IBV_EXP_EC_CALC_ATTR_ENCODE_MAT		= (1 << 6),
+	IBV_EXP_EC_CALC_ATTR_AFFINITY		= (1 << 7),
+	IBV_EXP_EC_CALC_ATTR_POLLING		= (1 << 8),
+	IBV_EXP_EC_CALC_INIT_ATTR_RESERVED	= (1 << 9),
+};
+
+/**
+ * struct ibv_exp_ec_calc_init_attr - erasure coding engine
+ *     initialization attributes
+ *
+ * @comp_mask:            compatibility bitmask
+ * @max_inflight_calcs:   maximum inflight calculations
+ * @k:                    number of data blocks
+ * @m:                    number of core blocks
+ * @w:                    Galois field bits GF(2^w)
+ * @max_data_sge:	  maximum data sg elements to be used for encode/decode
+ * @max_code_sge:	  maximum code sg elements to be used for encode/decode
+ * @encode_matrix:        buffer that contain the encoding matrix
+ * @affinity_hint:        affinity hint for asynchronous calcs completion
+ *                        steering.
+ * @polling:              polling mode (if set no completions will be generated
+ *                        by events).
+ */
+struct ibv_exp_ec_calc_init_attr {
+	uint32_t		comp_mask;
+	uint32_t		max_inflight_calcs;
+	int			k;
+	int			m;
+	int			w;
+	int			max_data_sge;
+	int			max_code_sge;
+	uint8_t			*encode_matrix;
+	int			affinity_hint;
+	int			polling;
+};
+
+/**
+ * enum ibv_exp_ec_status - EX calculation status
+ *
+ * @IBV_EXP_EC_CALC_SUCCESS:   EC calc operation succeded
+ * @IBV_EXP_EC_CALC_FAIL:      EC calc operation failed
+ */
+enum ibv_exp_ec_status {
+	IBV_EXP_EC_CALC_SUCCESS,
+	IBV_EXP_EC_CALC_FAIL,
+};
+
+/**
+ * struct ibv_exp_ec_comp - completion context of EC calculation
+ *
+ * @done:      function handle of the EC calculation completion
+ * @status:    status of the EC calculation
+ *
+ * The consumer is expected to embed this structure in his calculation context
+ * so that the user context would be acquired back using offsetof()
+ */
+struct ibv_exp_ec_comp {
+	void (*done)(struct ibv_exp_ec_comp *comp);
+	enum ibv_exp_ec_status status;
+};
+
+/**
+ * struct ibv_exp_ec_calc - erasure coding engine context
+ *
+ * @pd:                 protection domain
+ */
+struct ibv_exp_ec_calc {
+	struct ibv_pd		*pd;
+};
+
+/**
+ * struct ibv_exp_ec_mem - erasure coding memory layout context
+ *
+ * @data_blocks:        array of data sg elements
+ * @num_data_sge:       number of data sg elements
+ * @code_blocks:        array of code sg elements
+ * @num_code_sge:       number of code sg elements
+ * @block_size:         logical block size
+ */
+struct ibv_exp_ec_mem {
+	struct ibv_sge		*data_blocks;
+	int			num_data_sge;
+	struct ibv_sge		*code_blocks;
+	int			num_code_sge;
+	int			block_size;
+};
+
 struct verbs_context_exp {
 	/*  "grows up" - new fields go here */
+	struct ibv_exp_ec_calc *(*alloc_ec_calc)(struct ibv_pd *pd,
+						 struct ibv_exp_ec_calc_init_attr *attr);
+	void (*dealloc_ec_calc)(struct ibv_exp_ec_calc *calc);
+	int (*ec_encode_async)(struct ibv_exp_ec_calc *calc,
+			       struct ibv_exp_ec_mem *ec_mem,
+			       struct ibv_exp_ec_comp *ec_comp);
+	int (*ec_encode_sync)(struct ibv_exp_ec_calc *calc,
+			      struct ibv_exp_ec_mem *ec_mem);
+	int (*ec_decode_async)(struct ibv_exp_ec_calc *calc,
+			       struct ibv_exp_ec_mem *ec_mem,
+			       uint32_t erasures,
+			       uint8_t *decode_matrix,
+			       struct ibv_exp_ec_comp *ec_comp);
+	int (*ec_decode_sync)(struct ibv_exp_ec_calc *calc,
+			      struct ibv_exp_ec_mem *ec_mem,
+			      uint32_t erasures,
+			      uint8_t *decode_matrix);
+	int (*ec_poll)(struct ibv_exp_ec_calc *calc, int n);
 	int (*exp_query_gid_attr)(struct ibv_context *context, uint8_t port_num,
 				  unsigned int index,
 				  struct ibv_exp_gid_attr *attr);
@@ -2042,6 +2167,231 @@ static inline struct verbs_context_exp *verbs_get_exp_ctx(struct ibv_context *ct
 	if (vctx && (vctx->sz >= sizeof(*vctx) - offsetof(struct verbs_context_exp, op))) \
 		vctx->op = ptr; })
 
+
+/*
+ * ibv_exp_alloc_ec_calc() - allocate an erasure coding
+ *     calculation offload context
+ * @pd:          user allocated protection domain
+ * @attrs:       initialization attributes
+ *
+ * Returns handle handle to the EC calculation APIs
+ */
+static inline struct ibv_exp_ec_calc *
+ibv_exp_alloc_ec_calc(struct ibv_pd *pd,
+		      struct ibv_exp_ec_calc_init_attr *attr)
+{
+	struct verbs_context_exp *vctx;
+
+	vctx = verbs_get_exp_ctx_op(pd->context, alloc_ec_calc);
+	if (!vctx) {
+		errno = ENOSYS;
+		return NULL;
+	}
+	IBV_EXP_RET_NULL_ON_INVALID_COMP_MASK(attr->comp_mask,
+					      IBV_EXP_EC_CALC_INIT_ATTR_RESERVED - 1);
+
+	return vctx->alloc_ec_calc(pd, attr);
+}
+
+/*
+ * ibv_exp_dealloc_ec_calc() - free an erasure coding
+ *     calculation offload context
+ * @ec_calc:       ec context
+ */
+static inline void ibv_exp_dealloc_ec_calc(struct ibv_exp_ec_calc *calc)
+{
+	struct verbs_context_exp *vctx;
+
+	vctx = verbs_get_exp_ctx_op(calc->pd->context, dealloc_ec_calc);
+	if (!vctx) {
+		errno = ENOSYS;
+		return;
+	}
+
+	vctx->dealloc_ec_calc(calc);
+}
+
+/**
+ * ibv_exp_ec_encode_async() - asynchronous encode of given data blocks
+ *    and place in code_blocks
+ * @ec_calc:          erasure coding calculation engine
+ * @ec_mem:           erasure coding memory layout
+ * @ec_comp:          EC calculation completion context
+ *
+ * Restrictions:
+ * - ec_calc is an initialized erasure coding calc engine structure
+ * - ec_mem.data_blocks sg array must describe the data memory
+ *   layout, the total length of the sg elements must satisfy
+ *   k * ec_mem.block_size.
+ * - ec_mem.num_data_sg must not exceed the calc max_data_sge
+ * - ec_mem.code_blocks sg array must describe the code memory
+ *   layout, the total length of the sg elements must satisfy
+ *   m * ec_mem.block_size.
+ * - ec_mem.num_code_sg must not exceed the calc max_code_sge
+ *
+ * Notes:
+ * The ec_calc will perform the erasure coding calc operation,
+ * once it completes, it will call ec_comp->done() handle.
+ * The caller will take it from there.
+ */
+static inline int
+ibv_exp_ec_encode_async(struct ibv_exp_ec_calc *calc,
+			struct ibv_exp_ec_mem *ec_mem,
+			struct ibv_exp_ec_comp *ec_comp)
+{
+	struct verbs_context_exp *vctx;
+
+	vctx = verbs_get_exp_ctx_op(calc->pd->context, ec_encode_async);
+	if (!vctx)
+		return ENOSYS;
+
+	return vctx->ec_encode_async(calc, ec_mem, ec_comp);
+}
+
+/**
+ * ibv_exp_ec_encode_sync() - synchronous encode of given data blocks
+ *    and place in code_blocks
+ * @ec_calc:          erasure coding calculation engine
+ * @ec_mem:           erasure coding memory layout
+ *
+ * Restrictions:
+ * - ec_calc is an initialized erasure coding calc engine structure
+ * - ec_mem.data_blocks sg array must describe the data memory
+ *   layout, the total length of the sg elements must satisfy
+ *   k * ec_mem.block_size.
+ * - ec_mem.num_data_sg must not exceed the calc max_data_sge
+ * - ec_mem.code_blocks sg array must describe the code memory
+ *   layout, the total length of the sg elements must satisfy
+ *   m * ec_mem.block_size.
+ * - ec_mem.num_code_sg must not exceed the calc max_code_sge
+ *
+ * Returns 0 on success, non-zero on failure.
+ *
+ */
+static inline int
+ibv_exp_ec_encode_sync(struct ibv_exp_ec_calc *calc,
+		       struct ibv_exp_ec_mem *ec_mem)
+{
+	struct verbs_context_exp *vctx;
+
+	vctx = verbs_get_exp_ctx_op(calc->pd->context, ec_encode_sync);
+	if (!vctx)
+		return ENOSYS;
+
+	return vctx->ec_encode_sync(calc, ec_mem);
+}
+
+/**
+ * ibv_exp_ec_decode_async() - decode a given set of data blocks
+ *    and code_blocks and place into output recovery blocks
+ * @ec_calc:          erasure coding calculation engine
+ * @ec_mem:           erasure coding memory layout
+ * @erasures:         bitmap of which blocks were erased and needs to be recovered
+ * @decode_matrix:    buffer that contains the decode matrix
+ * @ec_comp:          EC calculation completion context
+ *
+ * Restrictions:
+ * - ec_calc is an initialized erasure coding calc engine structure
+ * - ec_mem.data_blocks sg array must describe the data memory
+ *   layout, the total length of the sg elements must satisfy
+ *   k * ec_mem.block_size.
+ * - ec_mem.num_data_sg must not exceed the calc max_data_sge
+ * - ec_mem.code_blocks sg array must describe the code memory
+ *   layout, the total length of the sg elements must satisfy
+ *   number of missing blocks * ec_mem.block_size.
+ * - ec_mem.num_code_sg must not exceed the calc max_code_sge
+ * - erasures bitmask consists of the survived and erased blocks.
+ *   The first k LS bits stand for the k data blocks followed by
+ *   m bits that stand for the code blocks. All the other bits are
+ *   ignored.
+ *
+ * Returns 0 on success, or non-zero on failure with a corresponding
+ * errno.
+ *
+ * Notes:
+ * The ec_calc will perform the erasure coding calc operation,
+ * once it completes, it will call ec_comp->done() handle.
+ * The caller will take it from there
+ */
+static inline int
+ibv_exp_ec_decode_async(struct ibv_exp_ec_calc *calc,
+			struct ibv_exp_ec_mem *ec_mem,
+			uint32_t erasures,
+			uint8_t *decode_matrix,
+			struct ibv_exp_ec_comp *ec_comp)
+{
+	struct verbs_context_exp *vctx;
+
+	vctx = verbs_get_exp_ctx_op(calc->pd->context, ec_decode_async);
+	if (!vctx)
+		return ENOSYS;
+
+	return vctx->ec_decode_async(calc, ec_mem, erasures,
+				     decode_matrix, ec_comp);
+}
+
+/**
+ * ibv_exp_ec_decode_sync() - decode a given set of data blocks
+ *    and code_blocks and place into output recovery blocks
+ * @ec_calc:          erasure coding calculation engine
+ * @ec_mem:           erasure coding memory layout
+ * @erasures:         bitmap of which blocks were erased and needs to be recovered
+ * @decode_matrix:    registered buffer of the decode matrix
+ *
+ * Restrictions:
+ * - ec_calc is an initialized erasure coding calc engine structure
+ * - ec_mem.data_blocks sg array must describe the data memory
+ *   layout, the total length of the sg elements must satisfy
+ *   k * ec_mem.block_size.
+ * - ec_mem.num_data_sg must not exceed the calc max_data_sge
+ * - ec_mem.code_blocks sg array must describe the code memory
+ *   layout, the total length of the sg elements must satisfy
+ *   number of missing blocks * ec_mem.block_size.
+ * - ec_mem.num_code_sg must not exceed the calc max_code_sge
+ * - erasures bitmask consists of the survived and erased blocks.
+ *   The first k LS bits stand for the k data blocks followed by
+ *   m bits that stand for the code blocks. All the other bits are
+ *   ignored.
+ *
+ * Returns 0 on success, or non-zero on failure with a corresponding
+ * errno.
+ */
+static inline int
+ibv_exp_ec_decode_sync(struct ibv_exp_ec_calc *calc,
+		       struct ibv_exp_ec_mem *ec_mem,
+		       uint32_t erasures,
+		       uint8_t *decode_matrix)
+{
+	struct verbs_context_exp *vctx;
+
+	vctx = verbs_get_exp_ctx_op(calc->pd->context, ec_decode_sync);
+	if (!vctx)
+		return ENOSYS;
+
+	return vctx->ec_decode_sync(calc, ec_mem, erasures, decode_matrix);
+}
+
+/**
+ * ibv_exp_ec_calc_poll() - poll for EC calculation
+ *
+ * @calc: EC calc context
+ * @n: number of calculations to poll
+ *
+ * Returns the number of calc completions processed which
+ * is lower or equal to n. Relevant only when EC calc context
+ * was allocated in polling mode.
+ */
+static inline int
+ibv_exp_ec_poll(struct ibv_exp_ec_calc *calc, int n)
+{
+	struct verbs_context_exp *vctx;
+
+	vctx = verbs_get_exp_ctx_op(calc->pd->context, ec_poll);
+	if (!vctx)
+		return ENOSYS;
+
+	return vctx->ec_poll(calc, n);
+}
 
 static inline struct ibv_qp *
 ibv_exp_create_qp(struct ibv_context *context, struct ibv_exp_qp_init_attr *qp_init_attr)
