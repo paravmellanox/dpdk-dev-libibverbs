@@ -124,7 +124,8 @@ enum ibv_exp_create_qp_kernel_flags {
 	IBV_EXP_CREATE_QP_KERNEL_FLAGS = IBV_EXP_QP_CREATE_CROSS_CHANNEL  |
 					 IBV_EXP_QP_CREATE_MANAGED_SEND   |
 					 IBV_EXP_QP_CREATE_MANAGED_RECV   |
-					 IBV_EXP_QP_CREATE_ATOMIC_BE_REPLY
+					 IBV_EXP_QP_CREATE_ATOMIC_BE_REPLY |
+					 IBV_EXP_QP_CREATE_RX_END_PADDING
 };
 
 struct ibv_exp_create_qp {
@@ -227,6 +228,13 @@ struct ibv_exp_ec_caps_resp {
         __u32        max_ec_calc_inflight_calcs;
 };
 
+struct ibv_exp_masked_atomic_caps {
+	__u32 max_fa_bit_boundary;
+	__u32 log_max_atomic_inline;
+	__u64 masked_log_atomic_arg_sizes;
+	__u64 masked_log_atomic_arg_sizes_network_endianness;
+};
+
 struct ibv_exp_query_device_resp {
 	__u64 comp_mask;
 	__u64 fw_ver;
@@ -291,6 +299,9 @@ struct ibv_exp_query_device_resp {
 	__u16 wq_vlan_offloads_cap;
 	__u8 reserved1[6];
 	struct ibv_exp_ec_caps_resp ec_caps;
+	struct ibv_exp_masked_atomic_caps masked_atomic_caps;
+	__u16 rx_pad_end_addr_align;
+	__u8 reserved2[6];
 };
 
 struct ibv_exp_create_dct {
@@ -535,6 +546,7 @@ struct ibv_exp_cmd_wq_mp_rq {
 enum ibv_exp_cmd_create_wq_comp_mask {
 	IBV_EXP_CMD_CREATE_WQ_MP_RQ		= 1 << 0,
 	IBV_EXP_CMD_CREATE_WQ_VLAN_OFFLOADS	= 1 << 1,
+	IBV_EXP_CMD_CREATE_WQ_FLAGS		= 1 << 2,
 };
 
 struct ibv_exp_create_wq {
@@ -551,6 +563,7 @@ struct ibv_exp_create_wq {
 	struct ibv_exp_cmd_wq_mp_rq mp_rq;
 	__u16 wq_vlan_offloads;
 	__u8 reserved1[6];
+	__u64 flags;
 };
 
 struct ibv_exp_create_wq_resp {

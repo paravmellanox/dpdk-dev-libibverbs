@@ -84,9 +84,9 @@ uint16_t                wq_vlan_offloads_cap;   /* VLAN offloads capabilities */
 .in -8
 };
 
-struct ibv_exp_ext_atomics_params {
+struct ibv_exp_ext_atomics_params { /* Deprecated, please use struct ibv_exp_masked_atomic_params */
 .in +8
-uint64_t                log_atomic_arg_sizes;  /* bit-mask of supported sizes */
+uint64_t                log_atomic_arg_sizes;  /* defines which masked operation sizes are supported with same endianness as stated in atomic_cap field */
 uint32_t                max_fa_bit_boundary;   /* Max fech and add bit boundary */
 uint32_t                log_max_atomic_inline; /* log of the maximum atomic inline size */
 .in -8
@@ -131,6 +131,15 @@ uint8_t                 min_single_wqe_log_num_of_strides;  /* Log of minimum nu
 uint8_t                 max_single_wqe_log_num_of_strides;  /* Log of maximum number of strides for single WQE */
 uint8_t                 min_single_stride_log_num_of_bytes; /* Log of minimum number of bytes in single stride */
 uint8_t                 max_single_stride_log_num_of_bytes; /* Log of maximum number of bytes in single stride */
+.in -8
+};
+
+struct ibv_exp_masked_atomic_params {
+.in +8
+uint32_t    max_fa_bit_boundary;                            /* Max fetch and add bit boundary */
+uint32_t    log_max_atomic_inline;                          /* Log of the maximum atomic inline size */
+uint64_t    masked_log_atomic_arg_sizes;                    /* Bit-mask of supported sizes */
+uint64_t    masked_log_atomic_arg_sizes_network_endianness; /* Masked atomic operation which support network endianness respond */
 .in -8
 };
 

@@ -123,6 +123,7 @@ enum ibv_exp_device_cap_flags {
 	IBV_EXP_DEVICE_RX_CSUM_TCP_UDP_PKT	= (IBV_EXP_START_FLAG << 11),
 	IBV_EXP_DEVICE_RX_CSUM_IP_PKT		= (IBV_EXP_START_FLAG << 12),
 	IBV_EXP_DEVICE_EC_OFFLOAD		= (IBV_EXP_START_FLAG << 13),
+	IBV_EXP_DEVICE_EXT_MASKED_ATOMICS	= (IBV_EXP_START_FLAG << 14),
 	IBV_EXP_DEVICE_MEM_WINDOW		= (IBV_EXP_START_FLAG << 17),
 	IBV_EXP_DEVICE_MEM_MGT_EXTENSIONS	= (IBV_EXP_START_FLAG << 21),
 	IBV_EXP_DEVICE_DC_INFO			= (IBV_EXP_START_FLAG << 22),
@@ -158,8 +159,10 @@ enum ibv_exp_device_attr_comp_mask {
 	IBV_EXP_DEVICE_ATTR_MP_RQ		= (1 << 16),
 	IBV_EXP_DEVICE_ATTR_VLAN_OFFLOADS	= (1 << 17),
 	IBV_EXP_DEVICE_ATTR_EC_CAPS		= (1 << 18),
+	IBV_EXP_DEVICE_ATTR_MASKED_ATOMICS	= (1 << 19),
+	IBV_EXP_DEVICE_ATTR_RX_PAD_END_ALIGN	= (1 << 20),
 	/* set supported bits for validity check */
-	IBV_EXP_DEVICE_ATTR_RESERVED		= (1 << 19),
+	IBV_EXP_DEVICE_ATTR_RESERVED		= (1 << 21),
 };
 
 struct ibv_exp_device_calc_cap {
@@ -171,9 +174,19 @@ struct ibv_exp_device_calc_cap {
 };
 
 struct ibv_exp_ext_atomics_params {
+	/* defines which masked operation sizes are supported with same
+	 * endianness as stated in atomic_cap field
+	 */
 	uint64_t		log_atomic_arg_sizes; /* bit-mask of supported sizes */
 	uint32_t		max_fa_bit_boundary;
 	uint32_t		log_max_atomic_inline;
+};
+
+struct ibv_exp_masked_atomic_params {
+	uint32_t	max_fa_bit_boundary;
+	uint32_t	log_max_atomic_inline;
+	uint64_t	masked_log_atomic_arg_sizes;
+	uint64_t	masked_log_atomic_arg_sizes_network_endianness;
 };
 
 enum ibv_odp_general_cap_bits {
@@ -306,6 +319,16 @@ struct ibv_exp_device_attr {
 	struct ibv_exp_mp_rq_caps	mp_rq_caps;
 	uint16_t		wq_vlan_offloads_cap; /* use ibv_exp_vlan_offloads enum */
 	struct ibv_exp_ec_caps         ec_caps;
+	struct ibv_exp_masked_atomic_params masked_atomic;
+	/*
+	 * The alignment of the padding end address.
+	 * When RX end of packet padding is enabled the device will pad the end
+	 * of RX packet up until the next address which is aligned to the
+	 * rx_pad_end_addr_align size.
+	 * Expected size for this field is according to system cache line size,
+	 * for example 64 or 128. When field is 0 padding is not supported.
+	 */
+	int			rx_pad_end_addr_align;
 };
 
 enum ibv_exp_access_flags {
@@ -829,8 +852,9 @@ enum ibv_exp_qp_create_flags {
 	IBV_EXP_QP_CREATE_ATOMIC_BE_REPLY      = (1 << 8),
 	IBV_EXP_QP_CREATE_UMR		       = (1 << 9),
 	IBV_EXP_QP_CREATE_EC_PARITY_EN	       = (1 << 10),
+	IBV_EXP_QP_CREATE_RX_END_PADDING       = (1 << 11),
 	/* set supported bits for validity check */
-	IBV_EXP_QP_CREATE_MASK                 = (0x000007DC)
+	IBV_EXP_QP_CREATE_MASK                 = (0x00000FDC)
 };
 
 struct ibv_exp_qp_init_attr {
@@ -1478,13 +1502,19 @@ enum ibv_exp_wq_init_attr_mask {
 	IBV_EXP_CREATE_WQ_RES_DOMAIN	= (1 << 0),
 	IBV_EXP_CREATE_WQ_MP_RQ		= (1 << 1),
 	IBV_EXP_CREATE_WQ_VLAN_OFFLOADS = (1 << 2),
-	IBV_EXP_CREATE_WQ_RESERVED	= (1 << 3)
+	IBV_EXP_CREATE_WQ_FLAGS		= (1 << 3),
+	IBV_EXP_CREATE_WQ_RESERVED	= (1 << 4)
 };
 
 struct ibv_exp_wq_mp_rq {
 	enum ibv_exp_mp_rq_shifts	use_shift;
 	uint8_t				single_wqe_log_num_of_strides;
 	uint8_t				single_stride_log_num_of_bytes;
+};
+
+enum ibv_exp_wq_init_attr_flags {
+	IBV_EXP_CREATE_WQ_FLAG_RX_END_PADDING	= (1ULL << 0),
+	IBV_EXP_CREATE_WQ_FLAG_RESERVED		= (1ULL << 1)
 };
 
 struct ibv_exp_wq_init_attr {
@@ -1506,6 +1536,7 @@ struct ibv_exp_wq_init_attr {
 	struct ibv_exp_res_domain *res_domain;
 	struct ibv_exp_wq_mp_rq	mp_rq;
 	uint16_t		vlan_offloads; /* use ibv_exp_vlan_offloads enum */
+	uint64_t		flags; /* general wq create flags */
 };
 
 enum ibv_exp_wq_attr_mask {
@@ -2012,6 +2043,18 @@ struct ibv_exp_ec_mem {
 	int			block_size;
 };
 
+/**
+ * struct ibv_exp_ec_stripe - erasure coding stripe descriptor
+ *
+ * @qp:    queue-pair connected to the relevant peer
+ * @wr:    send work request, can either be a RDMA wr or a SEND
+ */
+struct ibv_exp_ec_stripe {
+	struct ibv_qp		*qp;
+	struct ibv_send_wr	*wr;
+};
+
+
 struct verbs_context_exp {
 	/*  "grows up" - new fields go here */
 	struct ibv_exp_ec_calc *(*alloc_ec_calc)(struct ibv_pd *pd,
@@ -2032,6 +2075,10 @@ struct verbs_context_exp {
 			      uint32_t erasures,
 			      uint8_t *decode_matrix);
 	int (*ec_poll)(struct ibv_exp_ec_calc *calc, int n);
+	int (*ec_encode_send)(struct ibv_exp_ec_calc *calc,
+			      struct ibv_exp_ec_mem *ec_mem,
+			      struct ibv_exp_ec_stripe *data_stripes,
+			      struct ibv_exp_ec_stripe *code_stripes);
 	int (*exp_query_gid_attr)(struct ibv_context *context, uint8_t port_num,
 				  unsigned int index,
 				  struct ibv_exp_gid_attr *attr);
@@ -2391,6 +2438,43 @@ ibv_exp_ec_poll(struct ibv_exp_ec_calc *calc, int n)
 		return ENOSYS;
 
 	return vctx->ec_poll(calc, n);
+}
+
+/**
+ * ibv_exp_ec_encode_send() - encode a given data blocks
+ *    initiate the data and code blocks transfers to the wire with the qps array.
+ * @ec_calc:          erasure coding calculation engine
+ * @ec_mem:           erasure coding memory layout context
+ * @data_stripes:     array of stripe handles, each represents a data block channel
+ * @code_stripes:     array of qp handles, each represents a code block channel
+ *
+ * Restrictions:
+ * - ec_calc is an initialized erasure coding calc engine structure
+ * - ec_mem.data_blocks sg array must describe the data memory
+ *   layout, the total length of the sg elements must satisfy
+ *   k * ec_mem.block_size.
+ * - ec_mem.num_data_sg must not exceed the calc max_data_sge
+ * - ec_mem.code_blocks sg array must describe the code memory
+ *   layout, the total length of the sg elements must satisfy
+ *   m * ec_mem.block_size.
+ * - ec_mem.num_code_sg must not exceed the calc max_code_sge
+ *
+ * Returns 0 on success, or non-zero on failure with a corresponding
+ * errno.
+ */
+static inline int
+ibv_exp_ec_encode_send(struct ibv_exp_ec_calc *calc,
+		       struct ibv_exp_ec_mem *ec_mem,
+		       struct ibv_exp_ec_stripe *data_stripes,
+		       struct ibv_exp_ec_stripe *code_stripes)
+{
+	struct verbs_context_exp *vctx;
+
+	vctx = verbs_get_exp_ctx_op(calc->pd->context, ec_encode_send);
+	if (!vctx)
+		return -ENOSYS;
+
+	return vctx->ec_encode_send(calc, ec_mem, data_stripes, code_stripes);
 }
 
 static inline struct ibv_qp *
