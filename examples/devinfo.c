@@ -285,7 +285,8 @@ static void print_caps_exp(uint64_t caps)
 				   IBV_EXP_DEVICE_VXLAN_SUPPORT |
 				   IBV_EXP_DEVICE_RX_CSUM_TCP_UDP_PKT |
 				   IBV_EXP_DEVICE_RX_CSUM_IP_PKT |
-				   IBV_EXP_DEVICE_DC_INFO);
+				   IBV_EXP_DEVICE_DC_INFO |
+				   IBV_EXP_DEVICE_EXT_MASKED_ATOMICS);
 
 	if (caps & IBV_EXP_DEVICE_DC_TRANSPORT)
 		printf("\t\t\t\t\tEXP_DC_TRANSPORT\n");
@@ -327,6 +328,8 @@ static void print_caps_exp(uint64_t caps)
 		printf("\t\t\t\t\tEXP_RX_CSUM_IP_PKT\n");
 	if (caps & IBV_EXP_DEVICE_DC_INFO)
 		printf("\t\t\t\t\tEXP_DC_INFO\n");
+	if (caps & IBV_EXP_DEVICE_EXT_MASKED_ATOMICS)
+		printf("\t\t\t\t\tEXP_MASKED_ATOMICS\n");
 	if (caps & unknown_flags)
 		printf("\t\t\t\t\tUnknown flags: 0x%" PRIX64 "\n", caps & unknown_flags);
 }
@@ -474,9 +477,12 @@ static int print_hca_cap(struct ibv_device *ib_dev, uint8_t ib_port)
 		printf("\tatomic_cap:\t\t\t%s (%d)\n",
 		       exp_atomic_cap_str(device_attr.exp_atomic_cap),
 		       device_attr.exp_atomic_cap);
-		printf("\tlog atomic arg sizes (mask)\t\t%" PRIx64 "\n", device_attr.ext_atom.log_atomic_arg_sizes);
-		printf("\tmax fetch and add bit boundary\t%d\n", device_attr.ext_atom.max_fa_bit_boundary);
-		printf("\tlog max atomic inline\t\t%d\n", device_attr.ext_atom.log_max_atomic_inline);
+		printf("\tlog atomic arg sizes (mask)\t\t0x%" PRIx64 "\n", device_attr.ext_atom.log_atomic_arg_sizes);
+		printf("\tmasked_log_atomic_arg_sizes (mask)\t0x%" PRIx64 "\n", device_attr.masked_atomic.masked_log_atomic_arg_sizes);
+		printf("\tmasked_log_atomic_arg_sizes_network_endianness (mask)\t0x%" PRIx64 "\n",
+			device_attr.masked_atomic.masked_log_atomic_arg_sizes_network_endianness);
+		printf("\tmax fetch and add bit boundary\t%d\n", device_attr.masked_atomic.max_fa_bit_boundary);
+		printf("\tlog max atomic inline\t\t%d\n", device_attr.masked_atomic.log_max_atomic_inline);
 		printf("\tmax_ee:\t\t\t\t%d\n", device_attr.max_ee);
 		printf("\tmax_rdd:\t\t\t%d\n", device_attr.max_rdd);
 		printf("\tmax_mw:\t\t\t\t%d\n", device_attr.max_mw);
@@ -546,6 +552,7 @@ static int print_hca_cap(struct ibv_device *ib_dev, uint8_t ib_port)
 				printf("\tVLAN offloads unknown caps:\t\t0x%x\n",
 				       unknown_vlan_caps);
 		}
+		printf("\trx_pad_end_addr_align:\t%d\n", device_attr.rx_pad_end_addr_align);
 	}
 
 	if (device_attr.phys_port_cnt)

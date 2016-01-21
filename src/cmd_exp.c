@@ -212,6 +212,24 @@ int ibv_exp_cmd_query_device(struct ibv_context *context,
 		comp_mask |= IBV_EXP_DEVICE_ATTR_MAX_DEVICE_CTX;
 	}
 
+	if ((device_attr->comp_mask & IBV_EXP_DEVICE_ATTR_MASKED_ATOMICS) &&
+	    (resp.comp_mask & IBV_EXP_DEVICE_ATTR_MASKED_ATOMICS)) {
+		comp_mask |= IBV_EXP_DEVICE_ATTR_MASKED_ATOMICS;
+		device_attr->masked_atomic.masked_log_atomic_arg_sizes =
+			resp.masked_atomic_caps.masked_log_atomic_arg_sizes;
+		device_attr->masked_atomic.masked_log_atomic_arg_sizes_network_endianness =
+			resp.masked_atomic_caps.masked_log_atomic_arg_sizes_network_endianness;
+		device_attr->masked_atomic.max_fa_bit_boundary =
+			resp.max_fa_bit_boundary;
+		device_attr->masked_atomic.log_max_atomic_inline =
+			resp.log_max_atomic_inline;
+	}
+	if ((device_attr->comp_mask & IBV_EXP_DEVICE_ATTR_RX_PAD_END_ALIGN) &&
+	    (resp.comp_mask & IBV_EXP_DEVICE_ATTR_RX_PAD_END_ALIGN)) {
+		device_attr->rx_pad_end_addr_align = resp.rx_pad_end_addr_align;
+		comp_mask |= IBV_EXP_DEVICE_ATTR_RX_PAD_END_ALIGN;
+	}
+
 	device_attr->comp_mask = comp_mask;
 
 	return 0;
@@ -900,6 +918,15 @@ int ibv_exp_cmd_create_wq(struct ibv_context *context,
 			cmd->wq_vlan_offloads = wq_init_attr->vlan_offloads;
 			cmd->comp_mask |= IBV_EXP_CMD_CREATE_WQ_VLAN_OFFLOADS;
 		}
+	}
+
+	if (wq_init_attr->comp_mask & IBV_EXP_CREATE_WQ_FLAGS) {
+		if ((wq_init_attr->flags >= IBV_EXP_CREATE_WQ_FLAG_RESERVED) ||
+		    (cmd_core_size < offsetof(struct ibv_exp_create_wq, flags) + sizeof(__u64))) {
+			return EINVAL;
+		}
+		cmd->flags = wq_init_attr->flags;
+		cmd->comp_mask |= IBV_EXP_CMD_CREATE_WQ_FLAGS;
 	}
 
 	err = write(context->cmd_fd, cmd, cmd_size);
