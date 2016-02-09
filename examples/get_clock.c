@@ -205,7 +205,7 @@ static double proc_get_cpu_mhz(int no_cpu_freq_fail)
 double get_cpu_mhz(int no_cpu_freq_fail)
 {
 	#ifdef __s390x__
-	return sample_get_cpu_mgz();
+	return sample_get_cpu_mhz();
 	#else
 	double sample, proc, delta;
 
