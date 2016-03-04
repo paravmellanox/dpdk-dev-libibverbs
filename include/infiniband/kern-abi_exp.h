@@ -125,7 +125,8 @@ enum ibv_exp_create_qp_kernel_flags {
 					 IBV_EXP_QP_CREATE_MANAGED_SEND   |
 					 IBV_EXP_QP_CREATE_MANAGED_RECV   |
 					 IBV_EXP_QP_CREATE_ATOMIC_BE_REPLY |
-					 IBV_EXP_QP_CREATE_RX_END_PADDING
+					 IBV_EXP_QP_CREATE_RX_END_PADDING |
+					 IBV_EXP_QP_CREATE_SCATTER_FCS
 };
 
 struct ibv_exp_create_qp {

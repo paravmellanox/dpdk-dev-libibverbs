@@ -286,7 +286,9 @@ static void print_caps_exp(uint64_t caps)
 				   IBV_EXP_DEVICE_RX_CSUM_TCP_UDP_PKT |
 				   IBV_EXP_DEVICE_RX_CSUM_IP_PKT |
 				   IBV_EXP_DEVICE_DC_INFO |
-				   IBV_EXP_DEVICE_EXT_MASKED_ATOMICS);
+				   IBV_EXP_DEVICE_EXT_MASKED_ATOMICS |
+				   IBV_EXP_DEVICE_RX_TCP_UDP_PKT_TYPE |
+				   IBV_EXP_DEVICE_SCATTER_FCS);
 
 	if (caps & IBV_EXP_DEVICE_DC_TRANSPORT)
 		printf("\t\t\t\t\tEXP_DC_TRANSPORT\n");
@@ -330,6 +332,10 @@ static void print_caps_exp(uint64_t caps)
 		printf("\t\t\t\t\tEXP_DC_INFO\n");
 	if (caps & IBV_EXP_DEVICE_EXT_MASKED_ATOMICS)
 		printf("\t\t\t\t\tEXP_MASKED_ATOMICS\n");
+	if (caps & IBV_EXP_DEVICE_RX_TCP_UDP_PKT_TYPE)
+		printf("\t\t\t\t\tEXP_RX_TCP_UDP_PKT_TYPE\n");
+	if (caps & IBV_EXP_DEVICE_SCATTER_FCS)
+		printf("\t\t\t\t\tEXP_SCATTER_FCS\n");
 	if (caps & unknown_flags)
 		printf("\t\t\t\t\tUnknown flags: 0x%" PRIX64 "\n", caps & unknown_flags);
 }
@@ -546,8 +552,12 @@ static int print_hca_cap(struct ibv_device *ib_dev, uint8_t ib_port)
 			if (device_attr.wq_vlan_offloads_cap &
 			    IBV_EXP_RECEIVE_WQ_CVLAN_STRIP)
 				printf("\t\t\t\t\tC-VLAN stripping offload\n");
+			if (device_attr.wq_vlan_offloads_cap &
+			    IBV_EXP_RECEIVE_WQ_CVLAN_INSERTION)
+				printf("\t\t\t\t\tC-VLAN insertion offload\n");
 			unknown_vlan_caps = device_attr.wq_vlan_offloads_cap &
-				~IBV_EXP_RECEIVE_WQ_CVLAN_STRIP;
+				~(IBV_EXP_RECEIVE_WQ_CVLAN_STRIP |
+				  IBV_EXP_RECEIVE_WQ_CVLAN_INSERTION);
 			if (unknown_vlan_caps)
 				printf("\tVLAN offloads unknown caps:\t\t0x%x\n",
 				       unknown_vlan_caps);

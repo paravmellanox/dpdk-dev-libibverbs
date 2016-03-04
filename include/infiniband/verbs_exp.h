@@ -124,6 +124,8 @@ enum ibv_exp_device_cap_flags {
 	IBV_EXP_DEVICE_RX_CSUM_IP_PKT		= (IBV_EXP_START_FLAG << 12),
 	IBV_EXP_DEVICE_EC_OFFLOAD		= (IBV_EXP_START_FLAG << 13),
 	IBV_EXP_DEVICE_EXT_MASKED_ATOMICS	= (IBV_EXP_START_FLAG << 14),
+	IBV_EXP_DEVICE_RX_TCP_UDP_PKT_TYPE	= (IBV_EXP_START_FLAG << 15),
+	IBV_EXP_DEVICE_SCATTER_FCS		= (IBV_EXP_START_FLAG << 16),
 	IBV_EXP_DEVICE_MEM_WINDOW		= (IBV_EXP_START_FLAG << 17),
 	IBV_EXP_DEVICE_MEM_MGT_EXTENSIONS	= (IBV_EXP_START_FLAG << 21),
 	IBV_EXP_DEVICE_DC_INFO			= (IBV_EXP_START_FLAG << 22),
@@ -853,8 +855,9 @@ enum ibv_exp_qp_create_flags {
 	IBV_EXP_QP_CREATE_UMR		       = (1 << 9),
 	IBV_EXP_QP_CREATE_EC_PARITY_EN	       = (1 << 10),
 	IBV_EXP_QP_CREATE_RX_END_PADDING       = (1 << 11),
+	IBV_EXP_QP_CREATE_SCATTER_FCS          = (1 << 12),
 	/* set supported bits for validity check */
-	IBV_EXP_QP_CREATE_MASK                 = (0x00000FDC)
+	IBV_EXP_QP_CREATE_MASK                 = (0x00001FDC)
 };
 
 struct ibv_exp_qp_init_attr {
@@ -1464,10 +1467,13 @@ enum ibv_exp_wq_state {
 	IBV_EXP_WQS_UNKNOWN
 };
 
-/* VLAN Stripping */
+/* VLAN Offloads */
 enum ibv_exp_vlan_offloads {
-	IBV_EXP_RECEIVE_WQ_CVLAN_STRIP = (1 << 0), /* Represents C-VLAN stripping feature*/
-	IBV_EXP_RECEIVE_WQ_VLAN_OFFLOADS_RESERVED = (1 << 1),
+	/* Represents C-VLAN stripping feature */
+	IBV_EXP_RECEIVE_WQ_CVLAN_STRIP 			= (1 << 0),
+	/* Represents C-VLAN insertion feature*/
+	IBV_EXP_RECEIVE_WQ_CVLAN_INSERTION 		= (1 << 1),
+	IBV_EXP_RECEIVE_WQ_VLAN_OFFLOADS_RESERVED 	= (1 << 2),
 };
 
 /*
@@ -1514,7 +1520,8 @@ struct ibv_exp_wq_mp_rq {
 
 enum ibv_exp_wq_init_attr_flags {
 	IBV_EXP_CREATE_WQ_FLAG_RX_END_PADDING	= (1ULL << 0),
-	IBV_EXP_CREATE_WQ_FLAG_RESERVED		= (1ULL << 1)
+	IBV_EXP_CREATE_WQ_FLAG_SCATTER_FCS	= (1ULL << 1),
+	IBV_EXP_CREATE_WQ_FLAG_RESERVED		= (1ULL << 2)
 };
 
 struct ibv_exp_wq_init_attr {
@@ -1722,7 +1729,17 @@ enum ibv_exp_qp_burst_family_flags {
 	IBV_EXP_QP_BURST_FENCE		= 1 << 4,
 };
 
+/* All functions of QP family included in QP family version 1 */
 struct ibv_exp_qp_burst_family {
+	int (*send_pending)(struct ibv_qp *qp, uint64_t addr, uint32_t length, uint32_t lkey, uint32_t flags);
+	int (*send_pending_inline)(struct ibv_qp *qp, void *addr, uint32_t length, uint32_t flags);
+	int (*send_pending_sg_list)(struct ibv_qp *qp, struct ibv_sge *sg_list, uint32_t num, uint32_t flags);
+	int (*send_flush)(struct ibv_qp *qp);
+	int (*send_burst)(struct ibv_qp *qp, struct ibv_sge *msg_list, uint32_t num, uint32_t flags);
+	int (*recv_burst)(struct ibv_qp *qp, struct ibv_sge *msg_list, uint32_t num);
+};
+
+struct ibv_exp_qp_burst_family_v1 {
 	/*
 	 * send_pending - Put one message in the provider send queue.
 	 *
@@ -1770,6 +1787,39 @@ struct ibv_exp_qp_burst_family {
 	 * Note: One sge per message is supported by this function
 	 */
 	int (*recv_burst)(struct ibv_qp *qp, struct ibv_sge *msg_list, uint32_t num);
+	/*
+	 * send_pending_vlan - Put one message in the provider send queue
+	 * and insert vlan_tci to header.
+	 *
+	 * Common usage: Same as send_pending
+	 * Note:
+	 * - Same as send_pending
+	 * - Not supported when MP enable.
+	 */
+	int (*send_pending_vlan)(struct ibv_qp *qp, uint64_t addr, uint32_t length,
+				 uint32_t lkey, uint32_t flags, uint16_t *vlan_tci);
+	/*
+	 * send_pending_inline - Put one inline message in the provider send queue
+	 * and insert vlan_tci to header.
+	 *
+	 * Common usage: Same as send_pending_inline
+	 * Notes:
+	 * - Same as send_pending_inline
+	 * - Not supported when MP enable.
+	 */
+	int (*send_pending_inline_vlan)(struct ibv_qp *qp, void *addr, uint32_t length,
+					uint32_t flags, uint16_t *vlan_tci);
+	/*
+	 * send_pending_sg_list - Put one scatter-gather(sg) message in the provider send queue
+	 * and insert vlan_tci to header.
+	 *
+	 * Common usage: Same as send_pending_sg_list
+	 * Notes:
+	 * - Same as send_pending_sg_list
+	 * - Not supported when MP enable.
+	 */
+	int (*send_pending_sg_list_vlan)(struct ibv_qp *qp, struct ibv_sge *sg_list, uint32_t num,
+					 uint32_t flags, uint16_t *vlan_tci);
 };
 
 /* WQ family */
@@ -1815,6 +1865,14 @@ enum ibv_exp_cq_family_flags {
 							    * When set, CVLAN is stripped
 							    * from incoming packets.
 							    */
+
+							   /* The RX TCP/UDP packet flags
+							    * applicable according to
+							    * IBV_EXP_DEVICE_RX_TCP_UDP_PKT_TYPE
+							    * device capabilities flag
+							    */
+	IBV_EXP_CQ_RX_TCP_PACKET		= 1 << 11,
+	IBV_EXP_CQ_RX_UDP_PACKET		= 1 << 12,
 };
 
 /* All functions of CQ family included in CQ family version 1 */
