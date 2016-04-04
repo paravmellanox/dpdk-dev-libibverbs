@@ -684,7 +684,7 @@ int ibv_exp_cmd_create_cq(struct ibv_context *context, int cqe,
 	cmd->comp_channel  = channel ? channel->fd : -1;
 	cmd->reserved      = 0;
 
-	if (attr->comp_mask > IBV_EXP_CQ_INIT_ATTR_RESERVED1)
+	if (attr->comp_mask > IBV_EXP_CQ_INIT_ATTR_RESERVED2)
 		return ENOSYS;
 
 	if (attr->comp_mask & IBV_EXP_CQ_INIT_ATTR_FLAGS) {

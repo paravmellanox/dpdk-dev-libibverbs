@@ -638,6 +638,8 @@ enum ibv_exp_cq_init_attr_mask {
 							   */
 	IBV_EXP_CQ_INIT_ATTR_RES_DOMAIN		= 1 << 1,
 	IBV_EXP_CQ_INIT_ATTR_RESERVED1		= 1 << 2,
+	IBV_EXP_CQ_INIT_ATTR_COMP_EN 		= 1 << 2,
+	IBV_EXP_CQ_INIT_ATTR_RESERVED2		= 1 << 3,
 };
 
 struct ibv_exp_res_domain {
@@ -2897,7 +2899,7 @@ static inline struct ibv_cq *ibv_exp_create_cq(struct ibv_context *context,
 	}
 
 	IBV_EXP_RET_NULL_ON_INVALID_COMP_MASK(attr->comp_mask,
-					      IBV_EXP_CQ_INIT_ATTR_RESERVED1 - 1);
+					      IBV_EXP_CQ_INIT_ATTR_RESERVED2 - 1);
 	pthread_mutex_lock(&context->mutex);
 	cq = vctx->exp_create_cq(context, cqe, channel, comp_vector, attr);
 	if (cq) {
