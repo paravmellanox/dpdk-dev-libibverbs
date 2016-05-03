@@ -312,6 +312,13 @@ static int __ibv_exp_query_gid_attr(struct ibv_context *context,
 			 port_num, index);
 		if (ibv_read_sysfs_file(context->device->ibdev_path, name, buff,
 					sizeof(buff)) <= 0) {
+			if (errno == EINVAL) {
+				/* In IB, this file doesn't exist and we return
+				 * -EINVAL.
+				 */
+				attr->type = IBV_EXP_IB_ROCE_V1_GID_TYPE;
+				goto query_gid;
+			}
 			if (asprintf(&dir_path, "%s/%s",
 				     context->device->ibdev_path,
 				     "ports/1/gid_attrs/") < 0)
@@ -343,6 +350,7 @@ static int __ibv_exp_query_gid_attr(struct ibv_context *context,
 		}
 	}
 
+query_gid:
 	if (attr->comp_mask & IBV_EXP_QUERY_GID_ATTR_GID) {
 		if (ibv_query_gid(context, port_num, index, &attr->gid))
 			return ENOENT;
@@ -374,8 +382,8 @@ static int vsetenv(struct verbs_environment *env, const char *name,
 
 	errno = ENOMEM;
 	if (strlen(value) >= VERBS_MAX_ENV_VAL) {
-		fprintf(stderr, "Note: Max supported value for env var is %d\n",
-			VERBS_MAX_ENV_VAL - 1);
+		fprintf(stderr, PFX "Length (%zu) of environment variable '%s' is larger than max (%d), this variable is skipped.\n",
+			strlen(value), name, VERBS_MAX_ENV_VAL - 1);
 		return -1;
 	}
 	pthread_mutex_lock(&env->mtx);

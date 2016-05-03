@@ -70,6 +70,8 @@ describes the desired memory protection attributes; it is either 0 or the bitwis
 .TP
 .B IBV_EXP_ACCESS_RELAXED\fR      Create an on-demand paging Relaxed MR.
 .TP
+.B IBV_EXP_ACCESS_PHYSICAL_ADDR\fR      Create a MR supporitng physical addresses.
+.TP
 .B IBV_EXP_ACCESS_RESERVED\fR    Library's internal variable - used for validity checks.
 .PP
 If
@@ -113,6 +115,21 @@ larger memory region than requested, may allow more operations than the access
 flags that were passed to it and it's rkey may remain valid even after
 ibv_dereg_mr is called. It's used to fasten the ODP MR registration method for
 remote access.
+.PP
+if
+.B IBV_EXP_ACCESS_PHYSICAL_ADDR
+is set, then
+.I in->length
+should be set to zero and
+.I in->addr
+must be NULL. Physical address MR will allow to use physical addresses in WQEs instead of virtual addresses.
+.B IBV_EXP_ACCESS_PHYSICAL_ADDR
+can be combined only with
+.B IBV_EXP_ACCESS_LOCAL_WRITE,
+.B IBV_EXP_ACCESS_REMOTE_WRITE,
+.B IBV_EXP_ACCESS_REMOTE_READ
+or
+.B IBV_EXP_ACCESS_REMOTE_ATOMIC.
 .PP
 Local read access is always enabled for the MR.
 
