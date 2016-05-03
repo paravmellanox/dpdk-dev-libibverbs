@@ -45,15 +45,16 @@ uint32_t                  comp_mask;   /* Identifies valid fields. Use enum ibv_
 .nf
 uint32_t                  flags;       /* Flags mask to create CQ with extra features */
 struct ibv_exp_res_domain *res_domain; /* Provides resource domain to indicate the CQ threading and message model */
+				       /* Create CQ with Peer-direct sync support */
+struct ibv_exp_peer_direct_attr *peer_direct_attrs;
 .in -8
 };
 
 enum ibv_exp_cq_init_attr_mask{
 .in +8
-.fi
-IBV_EXP_CQ_INIT_ATTR_FLAGS		= 1 << 0, /* Set if attr->flags is valid */
-.nf
-IBV_EXP_CQ_INIT_ATTR_RESERVED		= 1 << 1, /* Use this - 1 if all fields are valid */
+IBV_EXP_CQ_INIT_ATTR_FLAGS              = 1 << 0, /* Set if attr->flags is valid */
+IBV_EXP_CQ_INIT_ATTR_RES_DOMAIN         = 1 << 1, /* Set if attr->res_domain is valid */
+IBV_EXP_CQ_INIT_PEER_DIRECT             = 1 << 2, /* Set if attr->peer_direct_attr is valid */
 .in -8
 };
 
@@ -67,6 +68,8 @@ specifies the CQ features.  It is either 0 or the bitwise OR of one or more of t
 .B IBV_EXP_CQ_TIMESTAMP \fR Return timestamp in WC
 .TP
 .B IBV_EXP_CQ_TIMESTAMP_TO_SYS_TIME \fR Convert the timestamp in WC to system time (unsupported by mlx4)
+.TP
+.B IBV_EXP_CQ_COMPRESSED_CQE \fR Work with compressed CQEs
 
 .PP
 .B ibv_destroy_cq()
@@ -89,8 +92,9 @@ fails if any queue pair is still associated with this CQ.
 .BR ibv_resize_cq (3),
 .BR ibv_req_notify_cq (3),
 .BR ibv_ack_cq_events (3),
-.BR ibv_create_qp (3)
-.BR ibv_exp_create_res_domain (3)
+.BR ibv_create_qp (3),
+.BR ibv_exp_create_res_domain (3),
+.BR peer_direct (7)
 .SH "AUTHORS"
 .TP
 Dotan Barak <dotanba@gmail.com>

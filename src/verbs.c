@@ -238,8 +238,13 @@ struct ibv_mr *__ibv_common_reg_mr(struct ibv_exp_reg_mr_in *in,
 	struct ibv_mr *mr;
 	int is_contig;
 	int is_odp;
+	int is_pa;
 
 	if ((in->exp_access & IBV_EXP_ACCESS_ALLOCATE_MR) && in->addr != NULL)
+		return NULL;
+
+	if ((in->exp_access & IBV_EXP_ACCESS_PHYSICAL_ADDR) &&
+	    (in->addr || in->length))
 		return NULL;
 
 	is_contig = !!((in->exp_access & IBV_EXP_ACCESS_ALLOCATE_MR) ||
@@ -247,8 +252,14 @@ struct ibv_mr *__ibv_common_reg_mr(struct ibv_exp_reg_mr_in *in,
 		     (in->create_flags & IBV_EXP_REG_MR_CREATE_CONTIG)));
 
 	is_odp = !!(in->exp_access & IBV_EXP_ACCESS_ON_DEMAND);
-	/* fork support for contig is handled by the provider, for odp no special code is needed */
-	if (!is_odp && !is_contig) {
+	is_pa = !!(in->exp_access & IBV_EXP_ACCESS_PHYSICAL_ADDR);
+	/*
+	 * Fork support for contig is handled by the provider.
+	 * For ODP no special code is needed.
+	 * Physical MR is not in the process address space, and therefore it is
+	 * not affected by fork.
+	 */
+	if (!is_odp && !is_contig && !is_pa) {
 		if (ibv_dontfork_range(in->addr, in->length))
 			return NULL;
 	}
@@ -269,7 +280,7 @@ struct ibv_mr *__ibv_common_reg_mr(struct ibv_exp_reg_mr_in *in,
 			mr->addr    = in->addr;
 		if (!(in->exp_access & IBV_EXP_ACCESS_RELAXED))
 			mr->length  = in->length;
-	} else if (!is_odp && !is_contig) {
+	} else if (!is_odp && !is_contig && !is_pa) {
 		ibv_dofork_range(in->addr, in->length);
 	}
 

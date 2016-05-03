@@ -40,6 +40,8 @@ uint32_t                max_inl_send_klms;/* Request Maximum number of KLMs when
 struct ibv_exp_res_domain *res_domain;    /* Provides resource domain to indicate the QP threading and message model */
 struct ibv_exp_rx_hash_conf *rx_hash_conf;/* RX hash configuration used for RSS */
 uint8_t                      port_num;    /* Port number to be associated with, applicable only to RX QP */
+                                          /* Create QP with Peer-direct sync support */
+struct ibv_exp_peer_direct_attr *peer_direct_attrs;
 .in -8
 };
 .sp
@@ -118,7 +120,8 @@ If the QP is RX one (i.e. ibv_exp_rx_hash_conf was set) it serves only as a stee
 .BR ibv_query_qp (3)
 .BR ibv_exp_create_res_domain (3),
 .BR ibv_exp_create_rwq_ind_table (3),
-.BR ibv_exp_query_device (3)
+.BR ibv_exp_query_device (3),
+.BR peer_direct (7)
 .SH "AUTHORS"
 .TP
 Yishai Hadas <yishaih@mellanox.com>

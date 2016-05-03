@@ -9,12 +9,12 @@ ibv_exp_ec_decode_sync, ibv_exp_ec_decode_async  \- synchronous and asynchronous
 .sp
 .BI "int ibv_exp_ec_decode_sync(struct ibv_exp_ec_calc " "*ec_calc" ,
 .BI "                           struct ibv_exp_ec_mem " "*ec_mem" ,
-.BI "                           uint32_t " "erasures" ,
+.BI "                           uint8_t* " "erasures" ,
 .BI "                           uint8_t " "*decode_matrix" );
 .sp
 .BI "int ibv_exp_ec_decode_async(struct ibv_exp_ec_calc " "*ec_calc" ,
 .BI "                            struct ibv_exp_ec_mem " "*ec_mem" ,
-.BI "                            uint32_t " "erasures" ,
+.BI "                            uint8_t* " "erasures" ,
 .BI "                            uint8_t " "*decode_matrix" ,
 .BI "                            struct ibv_exp_ec_comp " "*ec_comp" );
 .fi
@@ -46,26 +46,26 @@ to have a single unique logical
 .I block_size\fR.
 
 .PP
-The erasures are provided in a 32bit map where the
-.I K\fR least significant bits represent the data blocks and the
-.I M\fR following least significant bits represent the coding blocks.
+The erasures are provided in a byte-map where first
+.I K\fR bytes represent the data blocks and the following
+.I M\fR bytes represent the coding blocks.
 .nf
-10-4 erasures bitmap:
+10-4 erasures byte-map:
 .in +8
- -----------------------------------------------------------------------------------------------
-|31|30|29|28|27|26|25|24|23|22|21|20|19|18|17|16|15|14|13|12|11|10| 9| 8| 7| 6| 5| 4| 3| 2| 1| 0|
- -----------------------------------------------------------------------------------------------
-|                        ignored                      |code blocks|         data blocks         |
- -----------------------------------------------------------------------------------------------
+ ------------------------------------------
+|13|12|11|10| 9| 8| 7| 6| 5| 4| 3| 2| 1| 0|
+-------------------------------------------
+|code blocks|         data blocks         |
+-------------------------------------------
 .in -8
-Each erased block is represented by a set bit in the erasures bitmap.
+Each erased block is represented by a positively set byte in the erasures byte-map.
 .fi
 
 .PP
 The decoding matrix is provided as a byte pointer. The matrix rank corresponds
 to the number of blocks sufficient to recover the erased blocks
-.I K\fR and the number of erasures (set bits in
-.I erasures\fR bitmap).
+.I K\fR and the number of erasures (positively set bytes in
+.I erasures\fR byte-map).
 .nf
 10-4 with 4 erasures decoding matrix (G) layout:
 .in +8
@@ -152,12 +152,14 @@ init attribute must be equal to the number of code blocks init attribute
 must be multiplier of 64 bytes.
 .PP
 .I erasures
-bitmap cannot set more bits than
-.I K\fR bits set.
+pointer to byte-map cannot set more bytes than
+.I M\fR.
 .PP
 .SH "SEE ALSO"
 .BR ibv_exp_ec_encode_sync (3),
 .BR ibv_exp_ec_decode_sync (3),
+.BR ibv_exp_ec_update_sync (3),
+.BR ibv_exp_ec_update_async (3),
 .BR ibv_exp_alloc_ec_calc (3),
 .BR ibv_exp_dealloc_ec_calc (3),
 .SH "AUTHORS"

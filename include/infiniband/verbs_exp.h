@@ -351,8 +351,9 @@ enum ibv_exp_access_flags {
 	IBV_EXP_ACCESS_MW_ZERO_BASED		= (IBV_EXP_START_FLAG << 13),
 	IBV_EXP_ACCESS_ON_DEMAND		= (IBV_EXP_START_FLAG << 14),
 	IBV_EXP_ACCESS_RELAXED			= (IBV_EXP_START_FLAG << 15),
+	IBV_EXP_ACCESS_PHYSICAL_ADDR		= (IBV_EXP_START_FLAG << 16),
 	/* set supported bits for validity check */
-	IBV_EXP_ACCESS_RESERVED			= (IBV_EXP_START_FLAG << 16)
+	IBV_EXP_ACCESS_RESERVED			= (IBV_EXP_START_FLAG << 17)
 };
 
 /* memory window information struct that is common to types 1 and 2 */
@@ -611,6 +612,7 @@ enum ibv_exp_cq_create_flags {
 	IBV_EXP_CQ_CREATE_CROSS_CHANNEL		= 1 << 0,
 	IBV_EXP_CQ_TIMESTAMP			= 1 << 1,
 	IBV_EXP_CQ_TIMESTAMP_TO_SYS_TIME	= 1 << 2,
+	IBV_EXP_CQ_COMPRESSED_CQE		= 1 << 3,
 	/*
 	 * note: update IBV_EXP_CQ_CREATE_FLAGS_MASK when adding new fields
 	 */
@@ -619,7 +621,8 @@ enum ibv_exp_cq_create_flags {
 enum {
 	IBV_EXP_CQ_CREATE_FLAGS_MASK	= IBV_EXP_CQ_CREATE_CROSS_CHANNEL |
 					  IBV_EXP_CQ_TIMESTAMP |
-					  IBV_EXP_CQ_TIMESTAMP_TO_SYS_TIME,
+					  IBV_EXP_CQ_TIMESTAMP_TO_SYS_TIME |
+					  IBV_EXP_CQ_COMPRESSED_CQE,
 };
 
 /*
@@ -637,7 +640,8 @@ enum ibv_exp_cq_init_attr_mask {
 							   *				IBV_EXP_CQ_INIT_ATTR_RES_DOMAIN
 							   */
 	IBV_EXP_CQ_INIT_ATTR_RES_DOMAIN		= 1 << 1,
-	IBV_EXP_CQ_INIT_ATTR_RESERVED1		= 1 << 2,
+	IBV_EXP_CQ_INIT_ATTR_PEER_DIRECT	= 1 << 2,
+	IBV_EXP_CQ_INIT_ATTR_RESERVED1		= 1 << 3,
 };
 
 struct ibv_exp_res_domain {
@@ -648,6 +652,7 @@ struct ibv_exp_cq_init_attr {
 	uint32_t			 comp_mask;
 	uint32_t			 flags;
 	struct ibv_exp_res_domain	*res_domain;
+	struct ibv_exp_peer_direct_attr *peer_direct_attrs;
 };
 
 /*
@@ -777,7 +782,8 @@ enum ibv_exp_qp_init_attr_comp_mask {
 	IBV_EXP_QP_INIT_ATTR_RES_DOMAIN         = 1 << 7,
 	IBV_EXP_QP_INIT_ATTR_RX_HASH		= 1 << 8,
 	IBV_EXP_QP_INIT_ATTR_PORT		= 1 << 9,
-	IBV_EXP_QP_INIT_ATTR_RESERVED1		= 1 << 10,
+	IBV_EXP_QP_INIT_ATTR_PEER_DIRECT	= 1 << 10,
+	IBV_EXP_QP_INIT_ATTR_RESERVED1		= 1 << 11,
 };
 
 enum ibv_exp_qpg_type {
@@ -856,6 +862,7 @@ enum ibv_exp_qp_create_flags {
 	IBV_EXP_QP_CREATE_EC_PARITY_EN	       = (1 << 10),
 	IBV_EXP_QP_CREATE_RX_END_PADDING       = (1 << 11),
 	IBV_EXP_QP_CREATE_SCATTER_FCS          = (1 << 12),
+	IBV_EXP_QP_CREATE_INTERNAL_USE	       = (1 << 15),
 	/* set supported bits for validity check */
 	IBV_EXP_QP_CREATE_MASK                 = (0x00001FDC)
 };
@@ -881,6 +888,7 @@ struct ibv_exp_qp_init_attr {
 	struct ibv_exp_res_domain *res_domain;
 	struct ibv_exp_rx_hash_conf *rx_hash_conf;
 	uint8_t port_num;
+	struct ibv_exp_peer_direct_attr *peer_direct_attrs;
 };
 
 /*
@@ -2112,9 +2120,32 @@ struct ibv_exp_ec_stripe {
 	struct ibv_send_wr	*wr;
 };
 
+struct ibv_exp_peer_commit;
+struct ibv_exp_rollback_ctx;
+
+
+struct ibv_exp_peer_peek;
+struct ibv_exp_peer_abort_peek;
 
 struct verbs_context_exp {
 	/*  "grows up" - new fields go here */
+	int (*exp_peer_peek_cq)(struct ibv_cq *ibcq,
+				struct ibv_exp_peer_peek *peek_ctx);
+	int (*exp_peer_abort_peek_cq)(struct ibv_cq *ibcq,
+				      struct ibv_exp_peer_abort_peek *ack_ctx);
+	int (*exp_peer_commit_qp)(struct ibv_qp *qp,
+				  struct ibv_exp_peer_commit *peer);
+	int (*exp_rollback_send)(struct ibv_qp *qp,
+				 struct ibv_exp_rollback_ctx *rollback);
+	int (*ec_update_sync)(struct ibv_exp_ec_calc *calc,
+			      struct ibv_exp_ec_mem *ec_mem,
+			      uint8_t *data_updates,
+			      uint8_t *code_updates);
+	int (*ec_update_async)(struct ibv_exp_ec_calc *calc,
+			       struct ibv_exp_ec_mem *ec_mem,
+			       uint8_t *data_updates,
+			       uint8_t *code_updates,
+			       struct ibv_exp_ec_comp *ec_comp);
 	struct ibv_exp_ec_calc *(*alloc_ec_calc)(struct ibv_pd *pd,
 						 struct ibv_exp_ec_calc_init_attr *attr);
 	void (*dealloc_ec_calc)(struct ibv_exp_ec_calc *calc);
@@ -2125,12 +2156,12 @@ struct verbs_context_exp {
 			      struct ibv_exp_ec_mem *ec_mem);
 	int (*ec_decode_async)(struct ibv_exp_ec_calc *calc,
 			       struct ibv_exp_ec_mem *ec_mem,
-			       uint32_t erasures,
+			       uint8_t *erasures,
 			       uint8_t *decode_matrix,
 			       struct ibv_exp_ec_comp *ec_comp);
 	int (*ec_decode_sync)(struct ibv_exp_ec_calc *calc,
 			      struct ibv_exp_ec_mem *ec_mem,
-			      uint32_t erasures,
+			      uint8_t *erasures,
 			      uint8_t *decode_matrix);
 	int (*ec_poll)(struct ibv_exp_ec_calc *calc, int n);
 	int (*ec_encode_send)(struct ibv_exp_ec_calc *calc,
@@ -2391,7 +2422,8 @@ ibv_exp_ec_encode_sync(struct ibv_exp_ec_calc *calc,
  *    and code_blocks and place into output recovery blocks
  * @ec_calc:          erasure coding calculation engine
  * @ec_mem:           erasure coding memory layout
- * @erasures:         bitmap of which blocks were erased and needs to be recovered
+ * @erasures:         pointer to byte-map of which blocks were erased
+ * 		      and needs to be recovered
  * @decode_matrix:    buffer that contains the decode matrix
  * @ec_comp:          EC calculation completion context
  *
@@ -2405,10 +2437,9 @@ ibv_exp_ec_encode_sync(struct ibv_exp_ec_calc *calc,
  *   layout, the total length of the sg elements must satisfy
  *   number of missing blocks * ec_mem.block_size.
  * - ec_mem.num_code_sg must not exceed the calc max_code_sge
- * - erasures bitmask consists of the survived and erased blocks.
- *   The first k LS bits stand for the k data blocks followed by
- *   m bits that stand for the code blocks. All the other bits are
- *   ignored.
+ * - erasures byte-mask consists of the survived and erased blocks.
+ *   The first k bytes stand for the k data blocks followed by
+ *   m bytes that stand for the code blocks.
  *
  * Returns 0 on success, or non-zero on failure with a corresponding
  * errno.
@@ -2421,7 +2452,7 @@ ibv_exp_ec_encode_sync(struct ibv_exp_ec_calc *calc,
 static inline int
 ibv_exp_ec_decode_async(struct ibv_exp_ec_calc *calc,
 			struct ibv_exp_ec_mem *ec_mem,
-			uint32_t erasures,
+			uint8_t *erasures,
 			uint8_t *decode_matrix,
 			struct ibv_exp_ec_comp *ec_comp)
 {
@@ -2440,7 +2471,8 @@ ibv_exp_ec_decode_async(struct ibv_exp_ec_calc *calc,
  *    and code_blocks and place into output recovery blocks
  * @ec_calc:          erasure coding calculation engine
  * @ec_mem:           erasure coding memory layout
- * @erasures:         bitmap of which blocks were erased and needs to be recovered
+ * @erasures:         pointer to byte-map of which blocks were erased
+ * 		      and needs to be recovered
  * @decode_matrix:    registered buffer of the decode matrix
  *
  * Restrictions:
@@ -2453,10 +2485,9 @@ ibv_exp_ec_decode_async(struct ibv_exp_ec_calc *calc,
  *   layout, the total length of the sg elements must satisfy
  *   number of missing blocks * ec_mem.block_size.
  * - ec_mem.num_code_sg must not exceed the calc max_code_sge
- * - erasures bitmask consists of the survived and erased blocks.
- *   The first k LS bits stand for the k data blocks followed by
- *   m bits that stand for the code blocks. All the other bits are
- *   ignored.
+ * - erasures byte-map consists of the survived and erased blocks.
+ *   The first k bytes stand for the k data blocks followed by
+ *   m bytes that stand for the code blocks.
  *
  * Returns 0 on success, or non-zero on failure with a corresponding
  * errno.
@@ -2464,7 +2495,7 @@ ibv_exp_ec_decode_async(struct ibv_exp_ec_calc *calc,
 static inline int
 ibv_exp_ec_decode_sync(struct ibv_exp_ec_calc *calc,
 		       struct ibv_exp_ec_mem *ec_mem,
-		       uint32_t erasures,
+		       uint8_t *erasures,
 		       uint8_t *decode_matrix)
 {
 	struct verbs_context_exp *vctx;
@@ -2476,6 +2507,112 @@ ibv_exp_ec_decode_sync(struct ibv_exp_ec_calc *calc,
 	return vctx->ec_decode_sync(calc, ec_mem, erasures, decode_matrix);
 }
 
+/**
+ * ibv_exp_ec_update_async() - copmutes redundancies based on updated blocks,
+ *    their replacements and old redundancies and place into output code blocks
+ * @ec_calc:          erasure coding calculation engine
+ * @ec_mem:           erasure coding memory layout
+ * @data_updates:     array which is a map of data blocks that are updated
+ * @code_updates:     array which is a map of code blocks to be computed
+ * @ec_comp:          EC calculation completion context
+ *
+ * Restrictions:
+ * - ec_calc is an initialized erasure coding calc engine structure
+ * - ec_mem.data_blocks sg array must describe the data memory
+ *   layout in the following way:
+ *   assume we want to update blocks d_i and d_j with i<j,
+ *   then sg enries should be as follows:
+ *   c_0 ... c_m d_i d'_i d_j d'_j
+ *   were c_0 ... c_m are all previous redundancies,
+ *   d_i is an original i-th block, d'_i is new i-th block
+ * - ec_mem.num_data_sg should be equal to the number of sg entries,
+ *   i.e. to num of code blocks to be updated + 2*num of updates
+ * - ec_mem.code_blocks sg array must describe the code memory
+ *   layout, the total length of the sg elements must satisfy
+ *   number of overall code blocks to be updated.
+ * - ec_mem.num_code_sg must be equal to the number of code blocks
+ *   to be updated and not to exceed the calc max_code_sge
+ * - data_updates is an array of size k (=number of data blocks)
+ *   and is a byte-map for blocks to be updated, i.e
+ *   if we want to update i-th block and do not want to update j-th block,
+ *   then data_updates[i]=1 and data_updates[j]=0.
+ * - code_updates is an array of size m(=number of code blocks)
+ *   and is a byte-map of code blocks that should be computed, i.e
+ *   if we want to compute i-th block and do not want to compute j-th block,
+ *   then code_updates[i]=1 and code_updates[j]=0.
+ *
+ * Returns 0 on success, or non-zero on failure with a corresponding
+ * errno.
+ */
+
+static inline int
+ibv_exp_ec_update_async(struct ibv_exp_ec_calc *calc,
+			struct ibv_exp_ec_mem *ec_mem,
+			uint8_t *data_updates,
+			uint8_t *code_updates,
+			struct ibv_exp_ec_comp *ec_comp)
+{
+	struct verbs_context_exp *vctx;
+
+	vctx = verbs_get_exp_ctx_op(calc->pd->context, ec_update_async);
+	if (!vctx)
+		return -ENOSYS;
+
+	return vctx->ec_update_async(calc, ec_mem, data_updates,
+				     code_updates, ec_comp);
+}
+
+/**
+ * ibv_exp_ec_update_sync() - copmutes redundancies based on updated blocks,
+ *    their replacements and old redundancies and place into output code blocks
+ * @ec_calc:          erasure coding calculation engine
+ * @ec_mem:           erasure coding memory layout
+ * @data_updates:     array which is a map of data blocks that are updated
+ * @code_updates:     array which is a map of code blocks to be computed
+ *
+ * Restrictions:
+ * - ec_calc is an initialized erasure coding calc engine structure
+ * - ec_mem.data_blocks sg array must describe the data memory
+ *   layout in the following way:
+ *   assume we want to update blocks d_i and d_j with i<j,
+ *   then enries of sg should be as follows:
+ *   c_0..c_m d_i d'_i d_j d'_j
+ *   were c_0 .. c_m are previous redundancies,
+ *   d_i is an original i-th block, d'_i is new i-th block
+ * - ec_mem.num_data_sg should be equal to the number of sg entries,
+ *   i.e. to num of code blocks to be updated + 2*num of updates
+ * - ec_mem.code_blocks sg array must describe the code memory
+ *   layout, the total length of the sg elements must satisfy
+ *   number of overall code blocks to be updated.
+ * - ec_mem.num_code_sg must be equal to the number of code blocks
+ *   to be updated and not to exceed the calc max_code_sge
+ * - data_updates is an array of size k (=number of data blocks)
+ *   and is a byte-map for blocks to be updated, i.e
+ *   if we want to update i-th block and do not want to update j-th block,
+ *   then data_updates[i]=1 and data_updates[j]=0.
+ * - code_updates is an array of size m(=number of code blocks)
+ *   and is a bytemap of code blocks that should be computed, i.e
+ *   if we want to compute i-th block and do not want to compute j-th block,
+ *   then code_updates[i]=1 and code_updates[j]=0.
+ *
+ * Returns 0 on success, or non-zero on failure with a corresponding
+ * errno.
+ */
+
+static inline int
+ibv_exp_ec_update_sync(struct ibv_exp_ec_calc *calc,
+		       struct ibv_exp_ec_mem *ec_mem,
+		       uint8_t *data_updates,
+		       uint8_t *code_updates)
+{
+	struct verbs_context_exp *vctx;
+
+	vctx = verbs_get_exp_ctx_op(calc->pd->context, ec_update_sync);
+	if (!vctx)
+		return -ENOSYS;
+
+	return vctx->ec_update_sync(calc, ec_mem, data_updates, code_updates);
+}
 /**
  * ibv_exp_ec_calc_poll() - poll for EC calculation
  *

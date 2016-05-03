@@ -109,7 +109,7 @@ libibverbsinclude_HEADERS = include/infiniband/arch.h include/infiniband/driver.
     include/infiniband/kern-abi.h include/infiniband/opcode.h include/infiniband/verbs.h \
     include/infiniband/sa-kern-abi.h include/infiniband/sa.h include/infiniband/marshall.h \
     include/infiniband/ofa_verbs.h include/infiniband/driver_exp.h include/infiniband/kern-abi_exp.h \
-    include/infiniband/verbs_exp.h
+    include/infiniband/verbs_exp.h include/infiniband/peer_ops.h
 
 man_MANS = man/ibv_asyncwatch.1 man/ibv_devices.1 man/ibv_devinfo.1	\
     man/ibv_rc_pingpong.1 man/ibv_uc_pingpong.1 man/ibv_ud_pingpong.1	\
@@ -144,7 +144,9 @@ man_MANS = man/ibv_asyncwatch.1 man/ibv_devices.1 man/ibv_devinfo.1	\
     man/ibv_exp_query_intf.3 man/ibv_exp_create_wq.3                    \
     man/ibv_exp_modify_wq.3 man/ibv_exp_create_rwq_ind_table.3          \
     man/ibv_exp_query_gid_attr.3 man/ibv_exp_alloc_ec_calc.3		\
-    man/ibv_exp_ec_encode_async.3 man/ibv_exp_ec_decode_async.3
+    man/ibv_exp_ec_encode_async.3 man/ibv_exp_ec_decode_async.3		\
+    man/ibv_exp_ec_update_async.3					\
+    man/peer_direct.7 man/ibv_exp_peer_commit_qp.3
 
 EXTRA_DIST = include/infiniband/driver.h include/infiniband/kern-abi.h \
     include/infiniband/opcode.h include/infiniband/verbs.h include/infiniband/marshall.h \
@@ -187,6 +189,10 @@ install-data-hook:
 	$(RM) ibv_exp_dealloc_ec_calc.3 && \
 	$(RM) ibv_exp_ec_encode_sync.3 && \
 	$(RM) ibv_exp_ec_decode_sync.3 && \
+	$(RM) ibv_exp_ec_update_sync.3 && \
+	$(RM) ibv_exp_rollback_qp.3 && \
+	$(RM) ibv_exp_peer_peek_cq.3 && \
+	$(RM) ibv_exp_peer_abort_peek_cq.3 && \
 	$(LN_S) ibv_get_async_event.3 ibv_ack_async_event.3 && \
 	$(LN_S) ibv_get_cq_event.3 ibv_ack_cq_events.3 && \
 	$(LN_S) ibv_open_device.3 ibv_close_device.3 && \
@@ -211,5 +217,8 @@ install-data-hook:
 	$(LN_S) ibv_exp_create_rwq_ind_table.3 ibv_exp_destroy_rwq_ind_table.3 && \
 	$(LN_S) ibv_exp_alloc_ec_calc.3 ibv_exp_dealloc_ec_calc.3 && \
 	$(LN_S) ibv_exp_ec_encode_async.3 ibv_exp_ec_encode_sync.3 && \
-	$(LN_S) ibv_exp_ec_decode_async.3 ibv_exp_ec_decode_sync.3
-	
+	$(LN_S) ibv_exp_ec_decode_async.3 ibv_exp_ec_decode_sync.3 && \
+	$(LN_S) ibv_exp_ec_update_async.3 ibv_exp_ec_update_sync.3 && \
+	$(LN_S) ibv_exp_peer_commit_qp.3 ibv_exp_rollback_qp.3 && \
+	$(LN_S) ibv_exp_peer_commit_qp.3 ibv_exp_peer_peek_cq.3 && \
+	$(LN_S) ibv_exp_peer_commit_qp.3 ibv_exp_peer_abort_peek_cq.3

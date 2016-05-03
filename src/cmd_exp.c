@@ -698,7 +698,7 @@ int ibv_exp_cmd_create_cq(struct ibv_context *context, int cqe,
 	if (write(context->cmd_fd, cmd, wsize) != wsize)
 		return errno;
 
-	VALGRIND_MAKE_MEM_DEFINED(resp, sizeof(*resp));
+	VALGRIND_MAKE_MEM_DEFINED(resp, lib_resp_sz + drv_resp_sz);
 
 	cq->handle  = resp->cq_handle;
 	cq->cqe     = resp->cqe;
