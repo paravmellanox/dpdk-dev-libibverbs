@@ -380,12 +380,6 @@ static int vsetenv(struct verbs_environment *env, const char *name,
 	int err = 0;
 	int found = 0;
 
-	errno = ENOMEM;
-	if (strlen(value) >= VERBS_MAX_ENV_VAL) {
-		fprintf(stderr, PFX "Length (%zu) of environment variable '%s' is larger than max (%d), this variable is skipped.\n",
-			strlen(value), name, VERBS_MAX_ENV_VAL - 1);
-		return -1;
-	}
 	pthread_mutex_lock(&env->mtx);
 	for (prev = NULL, cur = env->head; cur; prev = cur, cur = cur->next) {
 		if (!strcmp(cur->name, name)) {
