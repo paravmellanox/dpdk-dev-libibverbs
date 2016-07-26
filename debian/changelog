@@ -1,4 +1,4 @@
-libibverbs (1.1.8mlnx1-OFED.3.3.0.0.9.33100) unstable; urgency=low
+libibverbs (1.1.8mlnx1-OFED.3.3.0.0.9) unstable; urgency=low
 
   * libibverbs/man: Update ibv_exp_create_mr man page.
   * libibverbs/man: Added description to ibv_exp_query_dct man page.
