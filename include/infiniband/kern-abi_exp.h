@@ -236,6 +236,18 @@ struct ibv_exp_masked_atomic_caps {
 	__u64 masked_log_atomic_arg_sizes_network_endianness;
 };
 
+struct ibv_exp_lso_caps_resp {
+	__u32 max_tso;
+	__u32 supported_qpts;
+};
+
+struct ibv_exp_packet_pacing_caps_resp {
+	__u32 qp_rate_limit_min;
+	__u32 qp_rate_limit_max; /* In kbps */
+	__u32 supported_qpts;
+	__u32 reserved;
+};
+
 struct ibv_exp_query_device_resp {
 	__u64 comp_mask;
 	__u64 fw_ver;
@@ -303,6 +315,8 @@ struct ibv_exp_query_device_resp {
 	struct ibv_exp_masked_atomic_caps masked_atomic_caps;
 	__u16 rx_pad_end_addr_align;
 	__u8 reserved2[6];
+	struct ibv_exp_lso_caps_resp tso_caps;
+	struct ibv_exp_packet_pacing_caps_resp packet_pacing_caps;
 };
 
 struct ibv_exp_create_dct {
@@ -430,6 +444,8 @@ struct ibv_exp_modify_qp {
 	__u32 exp_attr_mask;
 	__u32 flow_entropy;
 	__u64 driver_data[0];
+	__u32 rate_limit;
+	__u32 reserved1;
 };
 
 enum ibv_exp_create_cq_comp_mask {
@@ -630,6 +646,60 @@ struct ibv_exp_kern_spec_ipv6 {
 	struct ibv_exp_kern_ipv6_filter mask;
 };
 
+struct ibv_exp_kern_ipv6_ext_filter {
+	__u8 src_ip[16];
+	__u8 dst_ip[16];
+	__u32 flow_label;
+	__u8  next_hdr;
+	__u8  traffic_class;
+	__u8  hop_limit;
+	__u8  reserved;
+};
+
+struct ibv_exp_kern_spec_ipv6_ext {
+	__u32  type;
+	__u16  size;
+	__u16 reserved;
+	struct ibv_exp_kern_ipv6_ext_filter val;
+	struct ibv_exp_kern_ipv6_ext_filter mask;
+};
+
+struct ibv_exp_kern_ipv4_ext_filter {
+	__u32 src_ip;
+	__u32 dst_ip;
+	__u8  proto;
+	__u8  tos;
+	__u8  ttl;
+	__u8  flags;
+};
+
+struct ibv_exp_kern_spec_ipv4_ext {
+	__u32  type;
+	__u16  size;
+	__u16 reserved;
+	struct ibv_exp_kern_ipv4_ext_filter val;
+	struct ibv_exp_kern_ipv4_ext_filter mask;
+};
+
+struct ibv_exp_kern_tunnel_filter {
+	__u32 tunnel_id;
+};
+
+struct ibv_exp_kern_spec_tunnel {
+	__u32  type;
+	__u16  size;
+	__u16 reserved;
+	struct ibv_exp_kern_tunnel_filter val;
+	struct ibv_exp_kern_tunnel_filter mask;
+};
+
+struct ibv_exp_kern_spec_action_tag {
+	__u32  type;
+	__u16  size;
+	__u16 reserved;
+	__u32 tag_id;
+	__u32 reserved1;
+};
 
 struct ibv_exp_kern_spec {
 	union {
@@ -641,8 +711,12 @@ struct ibv_exp_kern_spec {
 		struct ibv_kern_spec_ib ib;
 		struct ibv_kern_spec_eth eth;
 		struct ibv_kern_spec_ipv4 ipv4;
+		struct ibv_exp_kern_spec_ipv4_ext ipv4_ext;
 		struct ibv_kern_spec_tcp_udp tcp_udp;
 		struct ibv_exp_kern_spec_ipv6 ipv6;
+		struct ibv_exp_kern_spec_ipv6_ext ipv6_ext;
+		struct ibv_exp_kern_spec_tunnel tunnel;
+		struct ibv_exp_kern_spec_action_tag flow_tag;
 	};
 };
 #endif /* KERN_ABI_EXP_H */

@@ -343,7 +343,7 @@ static struct nl_addr *process_get_neigh_mac(
 	struct nl_addr *ll_addr = get_neigh_mac(neigh_handler);
 	struct rtnl_neigh *neigh_filter;
 	fd_set fdset;
-	int sock_fd;
+	int uninitialized_var(sock_fd);
 	int fd;
 	int nfds;
 	int timer_fd;

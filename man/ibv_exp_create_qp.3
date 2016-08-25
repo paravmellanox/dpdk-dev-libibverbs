@@ -42,6 +42,7 @@ struct ibv_exp_rx_hash_conf *rx_hash_conf;/* RX hash configuration used for RSS 
 uint8_t                      port_num;    /* Port number to be associated with, applicable only to RX QP */
                                           /* Create QP with Peer-direct sync support */
 struct ibv_exp_peer_direct_attr *peer_direct_attrs;
+uint16_t                max_tso_header;   /* Maximum TSO header size */
 .in -8
 };
 .sp

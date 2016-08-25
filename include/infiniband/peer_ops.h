@@ -11,14 +11,14 @@
  *     without modification, are permitted provided that the following
  *     conditions are met:
  *
- *      - Redistributions of source code must retain the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer.
+ *	- Redistributions of source code must retain the above
+ *	  copyright notice, this list of conditions and the following
+ *	  disclaimer.
  *
- *      - Redistributions in binary form must reproduce the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer in the documentation and/or other materials
- *        provided with the distribution.
+ *	- Redistributions in binary form must reproduce the above
+ *	  copyright notice, this list of conditions and the following
+ *	  disclaimer in the documentation and/or other materials
+ *	  provided with the distribution.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
@@ -41,14 +41,17 @@
 BEGIN_C_DECLS
 
 enum ibv_exp_peer_op {
+	IBV_EXP_PEER_OP_RESERVED1	= 1,
+
 	IBV_EXP_PEER_OP_FENCE		= 0,
 
-	IBV_EXP_PEER_OP_STORE_DWORD	= 1,
+	IBV_EXP_PEER_OP_STORE_DWORD	= 4,
 	IBV_EXP_PEER_OP_STORE_QWORD	= 2,
 	IBV_EXP_PEER_OP_COPY_BLOCK	= 3,
 
 	IBV_EXP_PEER_OP_POLL_AND_DWORD	= 12,
 	IBV_EXP_PEER_OP_POLL_NOR_DWORD	= 13,
+	IBV_EXP_PEER_OP_POLL_GEQ_DWORD	= 14,
 };
 
 enum ibv_exp_peer_op_caps {
@@ -60,6 +63,8 @@ enum ibv_exp_peer_op_caps {
 		= (1 << IBV_EXP_PEER_OP_POLL_AND_DWORD),
 	IBV_EXP_PEER_OP_POLL_NOR_DWORD_CAP
 		= (1 << IBV_EXP_PEER_OP_POLL_NOR_DWORD),
+	IBV_EXP_PEER_OP_POLL_GEQ_DWORD_CAP
+		= (1 << IBV_EXP_PEER_OP_POLL_GEQ_DWORD),
 };
 
 enum ibv_exp_peer_fence {
@@ -92,6 +97,8 @@ struct ibv_exp_peer_buf_alloc_attr {
 	 * accessing the allocated buffer
 	 */
 	uint64_t peer_id;
+	/* Data alignment */
+	uint32_t alignment;
 	/* Reserved for future extensions, must be 0 */
 	uint32_t comp_mask;
 };
@@ -102,6 +109,12 @@ struct ibv_exp_peer_buf {
 	/* Reserved for future extensions, must be 0 */
 	uint32_t comp_mask;
 };
+
+enum ibv_exp_peer_direct_attr_mask {
+	IBV_EXP_PEER_DIRECT_VERSION	= (1 << 0) /* Must be set */
+};
+
+#define IBV_EXP_PEER_IOMEMORY ((struct ibv_exp_peer_buf *)-1UL)
 
 struct ibv_exp_peer_direct_attr {
 	/* Unique ID per peer device.
@@ -135,24 +148,30 @@ struct ibv_exp_peer_direct_attr {
 	 * @length: length of region
 	 * @peer_id: the ID of the peer device which will be accessing
 	 * the region.
+	 * @pb: if registering a buffer that was returned from buf_alloc(),
+	 * pb is the struct that was returned. If registering io memory area,
+	 * pb is IBV_EXP_PEER_IOMEMORY. Otherwise - NULL
 	 *
 	 * Return id of registered address on success, 0 on failure.
 	 */
-	uint64_t (*register_va)(void *start, size_t length, uint64_t peer_id);
+	uint64_t (*register_va)(void *start, size_t length, uint64_t peer_id,
+				struct ibv_exp_peer_buf *pb);
 	/* If virtual address was registered with register_va then
 	 * unregister_va will be called to unregister it.
-	 * @registration_id: id returned by register_va
+	 * @target_id: id returned by register_va
 	 * @peer_id: the ID of the peer device passed to register_va
 	 *
 	 * Return 0 on success.
 	 */
-	int (*unregister_va)(uint64_t registration_id, uint64_t peer_id);
+	int (*unregister_va)(uint64_t target_id, uint64_t peer_id);
 	/* Bitmask from ibv_exp_peer_op_caps */
 	uint64_t caps;
 	/* Maximal length of DMA operation the peer can do in copy-block */
 	size_t peer_dma_op_map_len;
-	/* Reserved for future extensions, must be 0 */
+	/* From ibv_exp_peer_direct_attr_mask */
 	uint32_t comp_mask;
+	/* Feature version, must be 1 */
+	uint32_t version;
 };
 
 /* QP API - CPU posts send work-requests without exposing them to the HW.
@@ -170,18 +189,21 @@ struct peer_op_wr {
 
 		struct {
 			uint32_t  data;
-			uint32_t *target_va;
+			uint64_t  target_id;
+			size_t	  offset;
 		} dword_va; /* Use for all operations targeting dword */
 
 		struct {
 			uint64_t  data;
-			uint64_t *target_va;
+			uint64_t  target_id;
+			size_t	  offset;
 		} qword_va; /* Use for all operations targeting qword */
 
 		struct {
-			void *src;
-			void *dst;
-			size_t len;
+			void	 *src;
+			uint64_t  target_id;
+			size_t	  offset;
+			size_t	  len;
 		} copy_op;
 	} wr;
 	uint32_t comp_mask; /* Reserved for future expensions, must be 0 */
@@ -262,15 +284,26 @@ static inline int ibv_exp_rollback_qp(struct ibv_qp *qp,
  * there is a CQ entry available.
  */
 
+enum {
+	IBV_EXP_PEER_PEEK_ABSOLUTE,
+	IBV_EXP_PEER_PEEK_RELATIVE
+};
+
 struct ibv_exp_peer_peek {
 	/* IN/OUT - linked list of empty/filled descriptors */
 	struct peer_op_wr *storage;
 	/* IN/OUT - number of allocated/filled descriptors */
 	uint32_t entries;
-	/* IN - How many CQ entries from the current poll_cq location
-	 * on the CPU does the peer want to peek for completion
+	/* IN - Which CQ entry does the peer want to peek for
+	 * completion. According to "whence" directive entry
+	 * chosen as follows:
+	 * IBV_EXP_PEER_PEEK_ABSOLUTE -
+	 *	"offset" is absolute index of entry wrapped to 32-bit
+	 * IBV_EXP_PEER_PEEK_RELATIVE -
+	 *      "offset" is relative to current poll_cq location.
 	 */
-	uint32_t cqe_offset_from_head;
+	uint32_t whence;
+	uint32_t offset;
 	/* OUT - identifier used in ibv_exp_peer_ack_peek_cq to advance CQ */
 	uint64_t peek_id;
 	uint32_t comp_mask; /* Reserved for future expensions, must be 0 */

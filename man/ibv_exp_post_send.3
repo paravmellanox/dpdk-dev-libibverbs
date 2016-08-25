@@ -127,6 +127,8 @@ uint64_t        dct_access_key;
 uint32_t        dct_number;
 .in -8
 } dc;
+union {
+.in +8
 struct {
 .in +8
 struct ibv_mw                   *mw;       /* The MW to bind */
@@ -136,6 +138,15 @@ struct ibv_exp_mw_bind_info     bind_info; /* The rest of the bind information -
                                               and the length to bind */
 .in -8
 } bind_mw;
+struct {
+.in +8
+void                           *hdr;   /* Pointer address of inline header */
+uint16_t                        hdr_sz; /* Inline header size */
+uint16_t                        mss;    /* Maximum segment size for each TSO fragment */
+.in -8
+} tso;
+.in -8
+};
 uint64_t        exp_send_flags; /* use ibv_exp_send_flags */
 uint32_t        comp_mask; /* reserved for future growth (must be 0) */
 union {
@@ -228,26 +239,27 @@ uint64_t        field_boundary;  /* the boundry of the add operation on F&A mask
 Each QP Transport Service Type supports a specific set of opcodes, as shown in the following table:
 .PP
 .nf
-OPCODE                                      | IBV_QPT_UD | IBV_QPT_UC | IBV_QPT_RC | IBV_EXP_QPT_DC_INI | IBV_QPT_XRC |
-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
-IBV_EXP_WR_SEND                             |     X      |     X      |     X      |         X          |      X      |
-IBV_EXP_WR_SEND_WITH_IMM                    |     X      |     X      |     X      |         X          |      X      | 
-IBV_EXP_WR_RDMA_WRITE                       |            |     X      |     X      |         X          |      X      | 
-IBV_EXP_WR_RDMA_WRITE_WITH_IMM              |            |     X      |     X      |         X          |      X      |
-IBV_EXP_WR_SEND_WITH_INV                    |            |     X      |     X      |         X          |      X      |
-IBV_EXP_WR_LOCAL_INV                        |            |     X      |     X      |         X          |      X      |
-IBV_EXP_WR_BIND_MW                          |            |     X      |     X      |         X          |      X      |
-IBV_EXP_WR_RDMA_READ                        |            |     X      |     X      |         X          |      X      |
-IBV_EXP_WR_ATOMIC_CMP_AND_SWP               |            |     X      |     X      |         X          |      X      |
-IBV_EXP_WR_ATOMIC_FETCH_AND_ADD             |            |     X      |     X      |         X          |      X      |
-IBV_EXP_WR_SEND_ENABLE                      |            |     X      |     X      |         X          |      X      | 
-IBV_EXP_WR_RECV_ENABLE                      |            |     X      |     X      |         X          |      X      |        
-IBV_EXP_WR_CQE_WAIT                         |            |     X      |     X      |         X          |      X      |      
-IBV_EXP_WR_EXT_MASKED_ATOMIC_CMP_AND_SWP    |            |            |     X      |         X          |      X      |       
-IBV_EXP_WR_EXT_MASKED_ATOMIC_FETCH_AND_ADD  |            |            |     X      |         X          |      X      |        
-IBV_EXP_WR_NOP                              |            |            |     X      |         X          |      X      |        
-IBV_EXP_WR_UMR_FILL                         |            |            |     X      |         X          |      X      |
-IBV_EXP_WR_UMR_INVALIDATE                   |            |            |     X      |         X          |      X      |
+OPCODE                                      | IBV_QPT_UD | IBV_QPT_UC | IBV_QPT_RC | IBV_EXP_QPT_DC_INI | IBV_QPT_XRC | IBV_QPT_RAW_PACKET |
+\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\ 
+IBV_EXP_WR_SEND                             |     X      |     X      |     X      |         X          |      X      |                    |
+IBV_EXP_WR_SEND_WITH_IMM                    |     X      |     X      |     X      |         X          |      X      |                    |
+IBV_EXP_WR_RDMA_WRITE                       |            |     X      |     X      |         X          |      X      |                    |
+IBV_EXP_WR_RDMA_WRITE_WITH_IMM              |            |     X      |     X      |         X          |      X      |                    |
+IBV_EXP_WR_SEND_WITH_INV                    |            |     X      |     X      |         X          |      X      |                    |
+IBV_EXP_WR_LOCAL_INV                        |            |     X      |     X      |         X          |      X      |                    |
+IBV_EXP_WR_BIND_MW                          |            |     X      |     X      |         X          |      X      |                    |
+IBV_EXP_WR_RDMA_READ                        |            |     X      |     X      |         X          |      X      |                    |
+IBV_EXP_WR_ATOMIC_CMP_AND_SWP               |            |     X      |     X      |         X          |      X      |                    |
+IBV_EXP_WR_ATOMIC_FETCH_AND_ADD             |            |     X      |     X      |         X          |      X      |                    |
+IBV_EXP_WR_SEND_ENABLE                      |            |     X      |     X      |         X          |      X      |                    |
+IBV_EXP_WR_RECV_ENABLE                      |            |     X      |     X      |         X          |      X      |                    |
+IBV_EXP_WR_CQE_WAIT                         |            |     X      |     X      |         X          |      X      |                    |
+IBV_EXP_WR_EXT_MASKED_ATOMIC_CMP_AND_SWP    |            |            |     X      |         X          |      X      |                    |
+IBV_EXP_WR_EXT_MASKED_ATOMIC_FETCH_AND_ADD  |            |            |     X      |         X          |      X      |                    |
+IBV_EXP_WR_NOP                              |            |            |     X      |         X          |      X      |                    |
+IBV_EXP_WR_UMR_FILL                         |            |            |     X      |         X          |      X      |                    |
+IBV_EXP_WR_UMR_INVALIDATE                   |            |            |     X      |         X          |      X      |                    |
+IBV_EXP_WR_TSO                              |            |            |            |                    |             |         X          |
 .fi
 .PP
 The attribute exp_send_flags describes the properties of the \s-1WR\s0. It is either 0 or the bitwise \s-1OR\s0 of one or more of the following flags:

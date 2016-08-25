@@ -163,8 +163,10 @@ enum ibv_exp_device_attr_comp_mask {
 	IBV_EXP_DEVICE_ATTR_EC_CAPS		= (1 << 18),
 	IBV_EXP_DEVICE_ATTR_MASKED_ATOMICS	= (1 << 19),
 	IBV_EXP_DEVICE_ATTR_RX_PAD_END_ALIGN	= (1 << 20),
+	IBV_EXP_DEVICE_ATTR_TSO_CAPS		= (1 << 21),
+	IBV_EXP_DEVICE_ATTR_PACKET_PACING_CAPS	= (1 << 22),
 	/* set supported bits for validity check */
-	IBV_EXP_DEVICE_ATTR_RESERVED		= (1 << 21),
+	IBV_EXP_DEVICE_ATTR_RESERVED		= (1 << 23),
 };
 
 struct ibv_exp_device_calc_cap {
@@ -260,6 +262,20 @@ struct ibv_exp_ec_caps {
 	uint32_t	max_ec_calc_inflight_calcs;
 };
 
+#define ibv_is_qpt_supported(caps, qpt) ((caps) & (1 << (qpt)))
+
+struct ibv_exp_tso_caps {
+	uint32_t max_tso;
+	uint32_t supported_qpts;
+};
+
+struct ibv_exp_packet_pacing_caps {
+	uint32_t qp_rate_limit_min;
+	uint32_t qp_rate_limit_max; /* In kbps */
+	uint32_t supported_qpts;
+	uint32_t reserved;
+};
+
 struct ibv_exp_device_attr {
 	char			fw_ver[64];
 	uint64_t		node_guid;
@@ -331,6 +347,8 @@ struct ibv_exp_device_attr {
 	 * for example 64 or 128. When field is 0 padding is not supported.
 	 */
 	int			rx_pad_end_addr_align;
+	struct ibv_exp_tso_caps	tso_caps;
+	struct ibv_exp_packet_pacing_caps packet_pacing_caps;
 };
 
 enum ibv_exp_access_flags {
@@ -414,6 +432,7 @@ enum ibv_exp_wr_opcode {
 	IBV_EXP_WR_SEND_WITH_INV	= 8 + IBV_EXP_START_ENUM,
 	IBV_EXP_WR_LOCAL_INV		= 10 + IBV_EXP_START_ENUM,
 	IBV_EXP_WR_BIND_MW		= 14 + IBV_EXP_START_ENUM,
+	IBV_EXP_WR_TSO			= 15 + IBV_EXP_START_ENUM,
 	IBV_EXP_WR_SEND_ENABLE		= 0x20 + IBV_EXP_START_ENUM,
 	IBV_EXP_WR_RECV_ENABLE,
 	IBV_EXP_WR_CQE_WAIT,
@@ -542,11 +561,18 @@ struct ibv_exp_send_wr {
 		uint64_t        dct_access_key;
 		uint32_t        dct_number;
 	} dc;
-	struct {
-		struct ibv_mw			*mw;
-		uint32_t			rkey;
-		struct ibv_exp_mw_bind_info	bind_info;
-	} bind_mw;
+	union {
+		struct {
+			struct ibv_mw			*mw;
+			uint32_t			rkey;
+			struct ibv_exp_mw_bind_info	bind_info;
+		} bind_mw;
+		struct {
+			void				*hdr;
+			uint16_t			hdr_sz;
+			uint16_t			mss;
+		} tso;
+	};
 	uint64_t	exp_send_flags; /* use ibv_exp_send_flags */
 	uint32_t	comp_mask; /* reserved for future growth (must be 0) */
 	union {
@@ -717,6 +743,7 @@ enum ibv_exp_qp_attr_mask {
 	IBV_EXP_QP_GROUP_RSS		= IBV_EXP_START_FLAG << 21,
 	IBV_EXP_QP_DC_KEY		= IBV_EXP_START_FLAG << 22,
 	IBV_EXP_QP_FLOW_ENTROPY		= IBV_EXP_START_FLAG << 23,
+	IBV_EXP_QP_RATE_LIMIT		= IBV_EXP_START_FLAG << 25,
 };
 
 /*
@@ -757,6 +784,7 @@ struct ibv_exp_qp_attr {
 	uint64_t		dct_key;
 	uint32_t		comp_mask; /* reserved for future growth (must be 0) */
 	uint32_t		flow_entropy;
+	uint32_t		rate_limit;
 };
 
 /*
@@ -783,7 +811,8 @@ enum ibv_exp_qp_init_attr_comp_mask {
 	IBV_EXP_QP_INIT_ATTR_RX_HASH		= 1 << 8,
 	IBV_EXP_QP_INIT_ATTR_PORT		= 1 << 9,
 	IBV_EXP_QP_INIT_ATTR_PEER_DIRECT	= 1 << 10,
-	IBV_EXP_QP_INIT_ATTR_RESERVED1		= 1 << 11,
+	IBV_EXP_QP_INIT_ATTR_MAX_TSO_HEADER	= 1 << 11,
+	IBV_EXP_QP_INIT_ATTR_RESERVED1		= 1 << 12,
 };
 
 enum ibv_exp_qpg_type {
@@ -889,6 +918,7 @@ struct ibv_exp_qp_init_attr {
 	struct ibv_exp_rx_hash_conf *rx_hash_conf;
 	uint8_t port_num;
 	struct ibv_exp_peer_direct_attr *peer_direct_attrs;
+	uint16_t		max_tso_header;
 };
 
 /*
@@ -1104,12 +1134,17 @@ enum ibv_exp_flow_attr_type {
 };
 
 enum ibv_exp_flow_spec_type {
-	IBV_EXP_FLOW_SPEC_ETH	= 0x20,
-	IBV_EXP_FLOW_SPEC_IB	= 0x21,
-	IBV_EXP_FLOW_SPEC_IPV4	= 0x30,
-	IBV_EXP_FLOW_SPEC_IPV6	= 0x31,
-	IBV_EXP_FLOW_SPEC_TCP	= 0x40,
-	IBV_EXP_FLOW_SPEC_UDP	= 0x41,
+	IBV_EXP_FLOW_SPEC_ETH		= 0x20,
+	IBV_EXP_FLOW_SPEC_IB		= 0x21,
+	IBV_EXP_FLOW_SPEC_IPV4		= 0x30,
+	IBV_EXP_FLOW_SPEC_IPV6		= 0x31,
+	IBV_EXP_FLOW_SPEC_IPV4_EXT	= 0x32,
+	IBV_EXP_FLOW_SPEC_IPV6_EXT	= 0x33,
+	IBV_EXP_FLOW_SPEC_TCP		= 0x40,
+	IBV_EXP_FLOW_SPEC_UDP		= 0x41,
+	IBV_EXP_FLOW_SPEC_VXLAN_TUNNEL	= 0x50,
+	IBV_EXP_FLOW_SPEC_INNER		= 0x100,
+	IBV_EXP_FLOW_SPEC_ACTION_TAG	= 0x1000,
 };
 
 struct ibv_exp_flow_eth_filter {
@@ -1165,6 +1200,44 @@ struct ibv_exp_flow_spec_ipv6 {
 	struct ibv_exp_flow_ipv6_filter mask;
 };
 
+struct ibv_exp_flow_spec_action_tag {
+	enum ibv_exp_flow_spec_type  type;
+	uint16_t  size;
+	uint32_t  tag_id;
+};
+
+struct ibv_exp_flow_ipv6_ext_filter {
+	uint8_t src_ip[16];
+	uint8_t dst_ip[16];
+	uint32_t flow_label;
+	uint8_t  next_hdr;
+	uint8_t  traffic_class;
+	uint8_t  hop_limit;
+};
+
+struct ibv_exp_flow_spec_ipv6_ext {
+	enum ibv_exp_flow_spec_type  type;
+	uint16_t  size;
+	struct ibv_exp_flow_ipv6_ext_filter val;
+	struct ibv_exp_flow_ipv6_ext_filter mask;
+};
+
+struct ibv_exp_flow_ipv4_ext_filter {
+	uint32_t src_ip;
+	uint32_t dst_ip;
+	uint8_t  proto;
+	uint8_t  tos;
+	uint8_t  ttl;
+	uint8_t  flags;
+};
+
+struct ibv_exp_flow_spec_ipv4_ext {
+	enum ibv_exp_flow_spec_type  type;
+	uint16_t  size;
+	struct ibv_exp_flow_ipv4_ext_filter val;
+	struct ibv_exp_flow_ipv4_ext_filter mask;
+};
+
 struct ibv_exp_flow_tcp_udp_filter {
 	uint16_t dst_port;
 	uint16_t src_port;
@@ -1177,17 +1250,32 @@ struct ibv_exp_flow_spec_tcp_udp {
 	struct ibv_exp_flow_tcp_udp_filter mask;
 };
 
+struct ibv_exp_flow_tunnel_filter {
+	uint32_t tunnel_id;
+};
+
+struct ibv_exp_flow_spec_tunnel {
+	enum ibv_exp_flow_spec_type  type;
+	uint16_t  size;
+	struct ibv_exp_flow_tunnel_filter val;
+	struct ibv_exp_flow_tunnel_filter mask;
+};
+
 struct ibv_exp_flow_spec {
 	union {
 		struct {
-			enum ibv_exp_flow_spec_type	type;
-			uint16_t			size;
+			uint32_t type;
+			uint16_t size;
 		} hdr;
 		struct ibv_exp_flow_spec_ib ib;
 		struct ibv_exp_flow_spec_eth eth;
 		struct ibv_exp_flow_spec_ipv4 ipv4;
+		struct ibv_exp_flow_spec_ipv4_ext ipv4_ext;
 		struct ibv_exp_flow_spec_tcp_udp tcp_udp;
 		struct ibv_exp_flow_spec_ipv6 ipv6;
+		struct ibv_exp_flow_spec_ipv6_ext ipv6_ext;
+		struct ibv_exp_flow_spec_tunnel tunnel;
+		struct ibv_exp_flow_spec_action_tag flow_tag;
 	};
 };
 
@@ -1232,6 +1320,7 @@ enum ibv_exp_wc_opcode {
 	IBV_EXP_WC_LOCAL_INV		=	7,
 	IBV_EXP_WC_MASKED_COMP_SWAP	=	9,
 	IBV_EXP_WC_MASKED_FETCH_ADD	=	10,
+	IBV_EXP_WC_TSO,
 	IBV_EXP_WC_UMR			=	0x100,
 /*
  * Set value of IBV_EXP_WC_RECV so consumers can test if a completion is a

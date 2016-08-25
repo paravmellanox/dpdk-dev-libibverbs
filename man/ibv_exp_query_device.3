@@ -81,6 +81,7 @@ uint32_t                    max_wq_type_rq;     /* Max Work Queue from type RQ *
 int                         max_device_ctx;     /* Maximum device contexts */
 struct ibv_exp_mp_rq_caps   mp_rq_caps;         /* Multi-Packet Receive Queue(RQ) capabilities */
 uint16_t                wq_vlan_offloads_cap;   /* VLAN offloads capabilities */
+struct ibv_tso_caps    tso_caps;                   /* TCP segmentation offload capabilities */
 .in -8
 };
 
@@ -143,6 +144,12 @@ uint64_t    masked_log_atomic_arg_sizes_network_endianness; /* Masked atomic ope
 .in -8
 };
 
+struct ibv_tso_caps {
+.in +8
+uint32_t max_tso;        /* Maximum payload size in bytes supported for segmentation by TSO engine.*/
+uint32_t supported_qpts; /* Bitmap showing which QP types are supported by TSO operation. */
+.in -8
+};
 
 .fi
 .SH "RETURN VALUE"

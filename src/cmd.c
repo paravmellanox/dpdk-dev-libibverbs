@@ -1231,14 +1231,81 @@ int ibv_cmd_detach_mcast(struct ibv_qp *qp, const union ibv_gid *gid, uint16_t l
 	return 0;
 }
 
+static int buffer_is_zero(char *addr, ssize_t size)
+{
+	return addr[0] == 0 && !memcmp(addr, addr + 1, size - 1);
+}
+
+static int get_filters_size(struct ibv_exp_flow_spec *ib_spec,
+			    struct ibv_exp_kern_spec *kern_spec,
+			    int *ib_filter_size, int *kern_filter_size,
+			    enum ibv_exp_flow_spec_type type)
+{
+	void *ib_spec_filter_mask;
+	int curr_kern_filter_size;
+	int min_filter_size;
+
+	*ib_filter_size = (ib_spec->hdr.size - sizeof(ib_spec->hdr)) / 2;
+
+	switch (type) {
+	case IBV_EXP_FLOW_SPEC_IPV4_EXT:
+		min_filter_size =
+			offsetof(struct ibv_exp_kern_ipv4_ext_filter, flags) +
+			sizeof(kern_spec->ipv4_ext.mask.flags);
+		curr_kern_filter_size = min_filter_size;
+		ib_spec_filter_mask = (void *)&ib_spec->ipv4_ext.val +
+			*ib_filter_size;
+		break;
+	case IBV_EXP_FLOW_SPEC_IPV6_EXT:
+		min_filter_size =
+			offsetof(struct ibv_exp_kern_ipv6_ext_filter,
+				 hop_limit) +
+			sizeof(kern_spec->ipv6_ext.mask.hop_limit);
+		curr_kern_filter_size = min_filter_size;
+		ib_spec_filter_mask = (void *)&ib_spec->ipv6_ext.val +
+			*ib_filter_size;
+		break;
+	case IBV_EXP_FLOW_SPEC_VXLAN_TUNNEL:
+		min_filter_size =
+			offsetof(struct ibv_exp_kern_tunnel_filter,
+				 tunnel_id) +
+			sizeof(kern_spec->tunnel.mask.tunnel_id);
+		curr_kern_filter_size = min_filter_size;
+		ib_spec_filter_mask = (void *)&ib_spec->tunnel.val +
+			*ib_filter_size;
+		break;
+	default:
+		return EINVAL;
+	}
+
+	if (*ib_filter_size < min_filter_size)
+		return EINVAL;
+
+	if (*ib_filter_size > curr_kern_filter_size &&
+	    !buffer_is_zero(ib_spec_filter_mask + curr_kern_filter_size,
+			    *ib_filter_size - curr_kern_filter_size))
+		return EOPNOTSUPP;
+
+	*kern_filter_size = min(curr_kern_filter_size, *ib_filter_size);
+
+	return 0;
+}
+
 static int ib_spec_to_kern_spec(struct ibv_exp_flow_spec *ib_spec,
 				struct ibv_exp_kern_spec *kern_spec,
 				int is_exp)
 {
-	kern_spec->hdr.type = ib_spec->hdr.type;
+	int kern_filter_size;
+	int ib_filter_size;
+	int ret;
 
+	if (!is_exp && (ib_spec->hdr.type & IBV_EXP_FLOW_SPEC_INNER))
+		return -EINVAL;
+
+	kern_spec->hdr.type = ib_spec->hdr.type;
 	switch (ib_spec->hdr.type) {
 	case IBV_EXP_FLOW_SPEC_ETH:
+	case IBV_EXP_FLOW_SPEC_ETH | IBV_EXP_FLOW_SPEC_INNER:
 		kern_spec->eth.size = sizeof(struct ibv_kern_spec_eth);
 		memcpy(&kern_spec->eth.val, &ib_spec->eth.val,
 		       sizeof(struct ibv_exp_flow_eth_filter));
@@ -1255,6 +1322,7 @@ static int ib_spec_to_kern_spec(struct ibv_exp_flow_spec *ib_spec,
 		       sizeof(struct ibv_exp_flow_ib_filter));
 		break;
 	case IBV_EXP_FLOW_SPEC_IPV4:
+	case IBV_EXP_FLOW_SPEC_IPV4 | IBV_EXP_FLOW_SPEC_INNER:
 		kern_spec->ipv4.size = sizeof(struct ibv_kern_spec_ipv4);
 		memcpy(&kern_spec->ipv4.val, &ib_spec->ipv4.val,
 		       sizeof(struct ibv_exp_flow_ipv4_filter));
@@ -1262,6 +1330,7 @@ static int ib_spec_to_kern_spec(struct ibv_exp_flow_spec *ib_spec,
 		       sizeof(struct ibv_exp_flow_ipv4_filter));
 		break;
 	case IBV_EXP_FLOW_SPEC_IPV6:
+	case IBV_EXP_FLOW_SPEC_IPV6 | IBV_EXP_FLOW_SPEC_INNER:
 		if (!is_exp)
 			return EINVAL;
 		kern_spec->ipv6.size = sizeof(struct ibv_exp_kern_spec_ipv6);
@@ -1270,13 +1339,72 @@ static int ib_spec_to_kern_spec(struct ibv_exp_flow_spec *ib_spec,
 		memcpy(&kern_spec->ipv6.mask, &ib_spec->ipv6.mask,
 		       sizeof(struct ibv_exp_flow_ipv6_filter));
 		break;
+	case IBV_EXP_FLOW_SPEC_IPV6_EXT:
+	case IBV_EXP_FLOW_SPEC_IPV6_EXT | IBV_EXP_FLOW_SPEC_INNER:
+		if (!is_exp)
+			return EINVAL;
+		ret = get_filters_size(ib_spec, kern_spec,
+				       &ib_filter_size, &kern_filter_size,
+				       IBV_EXP_FLOW_SPEC_IPV6_EXT);
+		if (ret)
+			return ret;
+
+		kern_spec->hdr.type = IBV_EXP_FLOW_SPEC_IPV6;
+		kern_spec->ipv6_ext.size = sizeof(struct ibv_exp_kern_spec_ipv6_ext);
+		memcpy(&kern_spec->ipv6_ext.val, &ib_spec->ipv6_ext.val,
+		       kern_filter_size);
+		memcpy(&kern_spec->ipv6_ext.mask, (void *)&ib_spec->ipv6_ext.val
+		       + ib_filter_size, kern_filter_size);
+		break;
+	case IBV_EXP_FLOW_SPEC_IPV4_EXT:
+	case IBV_EXP_FLOW_SPEC_IPV4_EXT | IBV_EXP_FLOW_SPEC_INNER:
+		if (!is_exp)
+			return EINVAL;
+		ret = get_filters_size(ib_spec, kern_spec,
+				       &ib_filter_size, &kern_filter_size,
+				       IBV_EXP_FLOW_SPEC_IPV4_EXT);
+		if (ret)
+			return ret;
+
+		kern_spec->hdr.type = IBV_EXP_FLOW_SPEC_IPV4;
+		kern_spec->ipv4_ext.size = sizeof(struct
+						  ibv_exp_kern_spec_ipv4_ext);
+		memcpy(&kern_spec->ipv4_ext.val, &ib_spec->ipv4_ext.val,
+		       kern_filter_size);
+		memcpy(&kern_spec->ipv4_ext.mask, (void *)&ib_spec->ipv4_ext.val
+		       + ib_filter_size, kern_filter_size);
+		break;
 	case IBV_EXP_FLOW_SPEC_TCP:
 	case IBV_EXP_FLOW_SPEC_UDP:
+	case IBV_EXP_FLOW_SPEC_TCP | IBV_EXP_FLOW_SPEC_INNER:
+	case IBV_EXP_FLOW_SPEC_UDP | IBV_EXP_FLOW_SPEC_INNER:
 		kern_spec->tcp_udp.size = sizeof(struct ibv_kern_spec_tcp_udp);
 		memcpy(&kern_spec->tcp_udp.val, &ib_spec->tcp_udp.val,
 		       sizeof(struct ibv_exp_flow_tcp_udp_filter));
 		memcpy(&kern_spec->tcp_udp.mask, &ib_spec->tcp_udp.mask,
 		       sizeof(struct ibv_exp_flow_tcp_udp_filter));
+		break;
+	case IBV_EXP_FLOW_SPEC_VXLAN_TUNNEL:
+		if (!is_exp)
+			return EINVAL;
+		ret = get_filters_size(ib_spec, kern_spec,
+				       &ib_filter_size, &kern_filter_size,
+				       IBV_EXP_FLOW_SPEC_VXLAN_TUNNEL);
+		if (ret)
+			return ret;
+
+		kern_spec->tunnel.size = sizeof(struct ibv_exp_kern_spec_tunnel);
+		memcpy(&kern_spec->tunnel.val, &ib_spec->tunnel.val,
+		       kern_filter_size);
+		memcpy(&kern_spec->tunnel.mask, (void *)&ib_spec->ipv4_ext.val
+		       + ib_filter_size, kern_filter_size);
+		break;
+	case IBV_EXP_FLOW_SPEC_ACTION_TAG:
+		if (!is_exp)
+			return EINVAL;
+		kern_spec->flow_tag.size = sizeof(struct
+						  ibv_exp_kern_spec_action_tag);
+		kern_spec->flow_tag.tag_id = ib_spec->flow_tag.tag_id;
 		break;
 	default:
 		return EINVAL;
@@ -1291,7 +1419,17 @@ static int flow_is_exp(struct ibv_exp_flow_attr *flow_attr)
 
 	for (i = 0; i < flow_attr->num_of_specs; i++) {
 		if (((struct ibv_exp_flow_spec *)ib_spec)->hdr.type ==
-		    IBV_EXP_FLOW_SPEC_IPV6)
+		    IBV_EXP_FLOW_SPEC_IPV6 ||
+		    ((struct ibv_exp_flow_spec *)ib_spec)->hdr.type ==
+		    IBV_EXP_FLOW_SPEC_IPV4_EXT ||
+		    ((struct ibv_exp_flow_spec *)ib_spec)->hdr.type ==
+		    IBV_EXP_FLOW_SPEC_IPV6_EXT ||
+		    ((struct ibv_exp_flow_spec *)ib_spec)->hdr.type ==
+		    IBV_EXP_FLOW_SPEC_VXLAN_TUNNEL ||
+		    ((struct ibv_exp_flow_spec *)ib_spec)->hdr.type ==
+		    IBV_EXP_FLOW_SPEC_ACTION_TAG ||
+		    ((struct ibv_exp_flow_spec *)ib_spec)->hdr.type &
+		    IBV_EXP_FLOW_SPEC_INNER)
 			return 1;
 		ib_spec += ((struct ibv_exp_flow_spec *)ib_spec)->hdr.size;
 	}

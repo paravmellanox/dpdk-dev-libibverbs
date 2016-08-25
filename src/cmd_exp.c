@@ -209,7 +209,7 @@ int ibv_exp_cmd_query_device(struct ibv_context *context,
 				resp.ec_caps.max_ec_calc_inflight_calcs;
 		device_attr->ec_caps.max_ec_data_vector_count =
 				resp.ec_caps.max_ec_data_vector_count;
-		comp_mask |= IBV_EXP_DEVICE_ATTR_MAX_DEVICE_CTX;
+		comp_mask |= IBV_EXP_DEVICE_ATTR_EC_CAPS;
 	}
 
 	if ((device_attr->comp_mask & IBV_EXP_DEVICE_ATTR_MASKED_ATOMICS) &&
@@ -228,6 +228,25 @@ int ibv_exp_cmd_query_device(struct ibv_context *context,
 	    (resp.comp_mask & IBV_EXP_DEVICE_ATTR_RX_PAD_END_ALIGN)) {
 		device_attr->rx_pad_end_addr_align = resp.rx_pad_end_addr_align;
 		comp_mask |= IBV_EXP_DEVICE_ATTR_RX_PAD_END_ALIGN;
+	}
+
+	if ((device_attr->comp_mask & IBV_EXP_DEVICE_ATTR_TSO_CAPS) &&
+	    (resp.comp_mask & IBV_EXP_DEVICE_ATTR_TSO_CAPS)) {
+		device_attr->tso_caps.max_tso = resp.tso_caps.max_tso;
+		device_attr->tso_caps.supported_qpts =
+				resp.tso_caps.supported_qpts;
+		comp_mask |= IBV_EXP_DEVICE_ATTR_TSO_CAPS;
+	}
+
+	if ((device_attr->comp_mask & IBV_EXP_DEVICE_ATTR_PACKET_PACING_CAPS) &&
+	    (resp.comp_mask & IBV_EXP_DEVICE_ATTR_PACKET_PACING_CAPS)) {
+		device_attr->packet_pacing_caps.qp_rate_limit_min =
+			resp.packet_pacing_caps.qp_rate_limit_min;
+		device_attr->packet_pacing_caps.qp_rate_limit_max =
+			resp.packet_pacing_caps.qp_rate_limit_max;
+		device_attr->packet_pacing_caps.supported_qpts =
+			resp.packet_pacing_caps.supported_qpts;
+		comp_mask |= IBV_EXP_DEVICE_ATTR_PACKET_PACING_CAPS;
 	}
 
 	device_attr->comp_mask = comp_mask;
@@ -652,6 +671,7 @@ int ibv_exp_cmd_modify_qp(struct ibv_qp *qp, struct ibv_exp_qp_attr *attr,
 	cmd->exp_attr_mask	    = (__u32)(exp_attr_mask >> IBV_EXP_START_FLAG_LOC);
 	if (attr->comp_mask & IBV_EXP_QP_ATTR_FLOW_ENTROPY)
 		cmd->flow_entropy	 = attr->flow_entropy;
+	cmd->rate_limit		    = attr->rate_limit;
 	cmd->reserved[0]	    = 0;
 	cmd->reserved[1]	    = 0;
 	cmd->comp_mask		    = attr->comp_mask;
