@@ -410,6 +410,45 @@ static char *qp_type_flag_str(enum ibv_exp_supported_qp_types qp_type_flag)
 	}
 }
 
+static void print_tso_caps(const struct ibv_exp_tso_caps *caps)
+{
+	uint32_t unknown_general_caps = ~(1 << IBV_QPT_RAW_PACKET |
+					  1 << IBV_QPT_UD);
+	printf("\ttso_caps:\n");
+	printf("\tmax_tso:\t\t\t%d\n", caps->max_tso);
+
+	if (caps->max_tso) {
+		printf("\tsupported_qp:\n");
+		if (ibv_is_qpt_supported(caps->supported_qpts, IBV_QPT_RAW_PACKET))
+			printf("\t\t\t\t\tSUPPORT_RAW_PACKET\n");
+		if (ibv_is_qpt_supported(caps->supported_qpts, IBV_QPT_UD))
+			printf("\t\t\t\t\tSUPPORT_UD\n");
+		if (caps->supported_qpts & unknown_general_caps)
+			printf("\t\t\t\t\tUnknown flags: 0x%" PRIX32 "\n",
+			       caps->supported_qpts & unknown_general_caps);
+	}
+}
+
+void print_packet_pacing_caps(const struct ibv_exp_packet_pacing_caps *caps)
+{
+	uint32_t unknown_general_caps = ~(1 << IBV_QPT_RAW_PACKET |
+					  1 << IBV_QPT_UD);
+	printf("\tpacket_pacing_caps:\n");
+	printf("\tqp_rate_limit_min:\t\t%dkbps\n", caps->qp_rate_limit_min);
+	printf("\tqp_rate_limit_max:\t\t%dkbps\n", caps->qp_rate_limit_max);
+
+	if (caps->qp_rate_limit_max) {
+		printf("\tsupported_qp:\n");
+		if (ibv_is_qpt_supported(caps->supported_qpts, IBV_QPT_RAW_PACKET))
+			printf("\t\t\t\t\tSUPPORT_RAW_PACKET\n");
+		if (ibv_is_qpt_supported(caps->supported_qpts, IBV_QPT_UD))
+			printf("\t\t\t\t\tSUPPORT_UD\n");
+		if (caps->supported_qpts & unknown_general_caps)
+			printf("\t\t\t\t\tUnknown flags: 0x%" PRIX32 "\n",
+			       caps->supported_qpts & unknown_general_caps);
+	}
+}
+
 static int print_hca_cap(struct ibv_device *ib_dev, uint8_t ib_port)
 {
 	struct ibv_context *ctx;
@@ -563,6 +602,8 @@ static int print_hca_cap(struct ibv_device *ib_dev, uint8_t ib_port)
 				       unknown_vlan_caps);
 		}
 		printf("\trx_pad_end_addr_align:\t%d\n", device_attr.rx_pad_end_addr_align);
+		print_tso_caps(&device_attr.tso_caps);
+		print_packet_pacing_caps(&device_attr.packet_pacing_caps);
 	}
 
 	if (device_attr.phys_port_cnt)

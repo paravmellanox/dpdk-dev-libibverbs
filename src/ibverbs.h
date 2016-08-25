@@ -73,6 +73,10 @@
 
 #define PFX		"libibverbs: "
 
+#ifndef min
+#define min(x, y) (((x) < (y)) ? (x) : (y))
+#endif
+
 struct ibv_abi_compat_v2 {
 	struct ibv_comp_channel	channel;
 	pthread_mutex_t		in_use;
@@ -152,6 +156,9 @@ HIDDEN struct ibv_qp *ibv_find_xrc_qp(uint32_t qpn);
 #define IBV_INIT_CMD_EXP(opcode, cmd, cmd_size, drv_size)		\
 	IBV_INIT_CMD_RESP_EXP(opcode, cmd, cmd_size, drv_size, 0, 0, 0)
 
+#ifndef uninitialized_var
+#define uninitialized_var(x) x = x
+#endif
 
 void ibv_set_huge_safe(void);
 #endif /* IB_VERBS_H */

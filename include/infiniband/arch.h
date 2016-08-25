@@ -130,9 +130,10 @@ static inline uint64_t ntohll(uint64_t x) { return x; }
 
 #elif defined(__aarch64__)
 
-#define mb()     asm volatile("" ::: "memory")
-#define rmb()    mb()
-#define wmb()    mb()
+/* Perhaps dmb would be sufficient? Let us be conservative for now. */
+#define mb()	asm volatile("dsb sy" ::: "memory")
+#define rmb()	asm volatile("dsb ld" ::: "memory")
+#define wmb()	asm volatile("dsb st" ::: "memory")
 #define wc_wmb() wmb()
 #define nc_wmb() wmb()
 
@@ -146,13 +147,7 @@ static inline uint64_t ntohll(uint64_t x) { return x; }
 
 #else
 
-#warning No architecture specific defines found.  Using generic implementation.
-
-#define mb()	 asm volatile("" ::: "memory")
-#define rmb()	 mb()
-#define wmb()	 mb()
-#define wc_wmb() wmb()
-#define nc_wmb() wmb()
+#error No architecture specific memory barrier defines found!
 
 #endif
 

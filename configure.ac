@@ -1,7 +1,7 @@
 dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.57)
-AC_INIT(libibverbs, 1.1.8mlnx1, linux-rdma@vger.kernel.org)
+AC_INIT(libibverbs, 1.2.1mlnx1, linux-rdma@vger.kernel.org)
 AC_CONFIG_SRCDIR([src/ibverbs.h])
 AC_CONFIG_AUX_DIR(config)
 AC_CONFIG_MACRO_DIR(config)
