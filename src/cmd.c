@@ -1300,7 +1300,7 @@ static int ib_spec_to_kern_spec(struct ibv_exp_flow_spec *ib_spec,
 	int ret;
 
 	if (!is_exp && (ib_spec->hdr.type & IBV_EXP_FLOW_SPEC_INNER))
-		return -EINVAL;
+		return EINVAL;
 
 	kern_spec->hdr.type = ib_spec->hdr.type;
 	switch (ib_spec->hdr.type) {
@@ -1396,7 +1396,7 @@ static int ib_spec_to_kern_spec(struct ibv_exp_flow_spec *ib_spec,
 		kern_spec->tunnel.size = sizeof(struct ibv_exp_kern_spec_tunnel);
 		memcpy(&kern_spec->tunnel.val, &ib_spec->tunnel.val,
 		       kern_filter_size);
-		memcpy(&kern_spec->tunnel.mask, (void *)&ib_spec->ipv4_ext.val
+		memcpy(&kern_spec->tunnel.mask, (void *)&ib_spec->tunnel.val
 		       + ib_filter_size, kern_filter_size);
 		break;
 	case IBV_EXP_FLOW_SPEC_ACTION_TAG:
