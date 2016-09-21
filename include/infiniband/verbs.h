@@ -1069,8 +1069,7 @@ static inline struct verbs_context *verbs_get_ctx(struct ibv_context *ctx)
 	if (vctx && (vctx->sz >= sizeof(*vctx) - offsetof(struct verbs_context, op))) \
 		vctx->op = ptr; })
 
-static inline struct verbs_device *verbs_get_device(
-					struct ibv_device *dev)
+static inline struct verbs_device *verbs_get_device(struct ibv_device *dev)
 {
 	return (dev->ops.alloc_context) ?
 		NULL : container_of(dev, struct verbs_device, device);

@@ -130,7 +130,7 @@ man_MANS = man/ibv_asyncwatch.1 man/ibv_devices.1 man/ibv_devinfo.1	\
     man/ibv_exp_post_task.3 man/ibv_exp_modify_cq.3			\
     man/ibv_cc_pingpong.1 man/ibv_task_pingpong.1 man/ibv_create_qp_ex.3 \
     man/ibv_create_srq_ex.3 man/ibv_open_xrcd.3 man/ibv_get_srq_num.3    \
-    man/ibv_open_qp.3 man/ibv_create_flow.3				\
+    man/ibv_open_qp.3 man/ibv_create_flow.3 man/ibv_exp_create_flow.3	\
     man/ibv_exp_create_cq.3 man/ibv_exp_modify_qp.3			\
     man/ibv_exp_poll_cq.3 man/ibv_exp_query_device.3			\
     man/ibv_exp_get_provider_func.3 man/ibv_exp_reg_mr.3		\
@@ -182,6 +182,7 @@ install-data-hook:
 	$(RM) ibv_close_xrcd.3 && \
 	$(RM) ibv_destroy_flow.3 && \
 	$(RM) ibv_dealloc_mw.3 && \
+	$(RM) ibv_exp_destroy_flow.3 && \
 	$(RM) ibv_exp_destroy_res_domain.3 && \
 	$(RM) ibv_exp_release_intf.3 && \
 	$(RM) ibv_exp_destroy_wq.3 && \
@@ -210,6 +211,7 @@ install-data-hook:
 	$(LN_S) ibv_event_type_str.3 ibv_port_state_str.3 && \
 	$(LN_S) ibv_open_xrcd.3 ibv_close_xrcd.3 && \
 	$(LN_S) ibv_create_flow.3 ibv_destroy_flow.3 && \
+	$(LN_S) ibv_exp_create_flow.3 ibv_exp_destroy_flow.3 && \
 	$(LN_S) ibv_alloc_mw.3 ibv_dealloc_mw.3 && \
 	$(LN_S) ibv_exp_create_res_domain.3 ibv_exp_destroy_res_domain.3 && \
 	$(LN_S) ibv_exp_query_intf.3 ibv_exp_release_intf.3 && \
