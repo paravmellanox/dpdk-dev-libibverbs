@@ -151,6 +151,29 @@ static inline uint64_t ntohll(uint64_t x) { return x; }
 
 #endif
 
+#if defined(__x86_64__) || defined(__i386__)
+static inline void cpu_relax(void)
+{
+	__asm__ __volatile__("rep;nop":::"memory");
+}
+#elif defined(__PPC64__)
+static inline void cpu_relax(void)
+{
+	__asm__ __volatile__("or 1,1,1      # low priority");
+	__asm__ __volatile__("or 2,2,2      # medium priority");
+	mb();
+}
+#elif defined(__PPC__)
+static inline void cpu_relax(void)
+{
+	mb();
+}
+#else
+static inline void cpu_relax(void)
+{
+}
+#endif
+
 #ifdef WC_AUTO_EVICT_SIZE
 static inline int wc_auto_evict_size(void) { return WC_AUTO_EVICT_SIZE; };
 #else

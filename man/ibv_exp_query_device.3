@@ -82,6 +82,7 @@ int                         max_device_ctx;     /* Maximum device contexts */
 struct ibv_exp_mp_rq_caps   mp_rq_caps;         /* Multi-Packet Receive Queue(RQ) capabilities */
 uint16_t                wq_vlan_offloads_cap;   /* VLAN offloads capabilities */
 struct ibv_tso_caps    tso_caps;                   /* TCP segmentation offload capabilities */
+uint64_t               odp_mar_max_size;	   /* Max supported ODP MR size */
 .in -8
 };
 

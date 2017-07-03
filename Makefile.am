@@ -148,7 +148,11 @@ man_MANS = man/ibv_asyncwatch.1 man/ibv_devices.1 man/ibv_devinfo.1	\
     man/ibv_exp_ec_update_async.3					\
     man/peer_direct.7 man/ibv_exp_peer_commit_qp.3			\
     man/ibv_query_device_ex.3 man/ibv_rereg_mr.3 man/ibv_bind_mw.3	\
-    man/ibv_inc_rkey.3
+    man/ibv_inc_rkey.3							\
+    man/ibv_exp_open_device.3						\
+    man/ibv_exp_create_srq.3						\
+    man/ibv_exp_post_srq_ops.3						\
+    man/ibv_exp_cqe_ts_to_ns.3
 
 EXTRA_DIST = include/infiniband/driver.h include/infiniband/kern-abi.h \
     include/infiniband/opcode.h include/infiniband/verbs.h include/infiniband/marshall.h \
