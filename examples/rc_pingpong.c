@@ -58,6 +58,7 @@ static int page_size;
 static int use_contiguous_mr;
 static int use_odp;
 static int use_upstream;
+static int use_ooo;
 static void *contig_addr;
 
 struct pingpong_context {
@@ -86,7 +87,7 @@ static int pp_connect_ctx(struct pingpong_context *ctx, int port, int my_psn,
 			  enum ibv_mtu mtu, int sl,
 			  struct pingpong_dest *dest, int sgid_idx)
 {
-	struct ibv_qp_attr attr = {
+	struct ibv_exp_qp_attr attr = {
 		.qp_state		= IBV_QPS_RTR,
 		.path_mtu		= mtu,
 		.dest_qp_num		= dest->qpn,
@@ -101,6 +102,7 @@ static int pp_connect_ctx(struct pingpong_context *ctx, int port, int my_psn,
 			.port_num	= port
 		}
 	};
+	enum ibv_exp_qp_attr_mask attr_mask;
 
 	if (dest->gid.global.interface_id) {
 		attr.ah_attr.is_global = 1;
@@ -108,14 +110,16 @@ static int pp_connect_ctx(struct pingpong_context *ctx, int port, int my_psn,
 		attr.ah_attr.grh.dgid = dest->gid;
 		attr.ah_attr.grh.sgid_index = sgid_idx;
 	}
-	if (ibv_modify_qp(ctx->qp, &attr,
-			  IBV_QP_STATE              |
-			  IBV_QP_AV                 |
-			  IBV_QP_PATH_MTU           |
-			  IBV_QP_DEST_QPN           |
-			  IBV_QP_RQ_PSN             |
-			  IBV_QP_MAX_DEST_RD_ATOMIC |
-			  IBV_QP_MIN_RNR_TIMER)) {
+	attr_mask = IBV_QP_STATE              |
+		    IBV_QP_AV                 |
+		    IBV_QP_PATH_MTU           |
+		    IBV_QP_DEST_QPN           |
+		    IBV_QP_RQ_PSN             |
+		    IBV_QP_MAX_DEST_RD_ATOMIC |
+		    IBV_QP_MIN_RNR_TIMER;
+	attr_mask |= use_ooo ? IBV_EXP_QP_OOO_RW_DATA_PLACEMENT : 0;
+
+	if (ibv_exp_modify_qp(ctx->qp, &attr, attr_mask)) {
 		fprintf(stderr, "Failed to modify QP to RTR\n");
 		return 1;
 	}
@@ -126,13 +130,13 @@ static int pp_connect_ctx(struct pingpong_context *ctx, int port, int my_psn,
 	attr.rnr_retry	    = 7;
 	attr.sq_psn	    = my_psn;
 	attr.max_rd_atomic  = 1;
-	if (ibv_modify_qp(ctx->qp, &attr,
-			  IBV_QP_STATE              |
-			  IBV_QP_TIMEOUT            |
-			  IBV_QP_RETRY_CNT          |
-			  IBV_QP_RNR_RETRY          |
-			  IBV_QP_SQ_PSN             |
-			  IBV_QP_MAX_QP_RD_ATOMIC)) {
+	if (ibv_exp_modify_qp(ctx->qp, &attr,
+			      IBV_QP_STATE              |
+			      IBV_QP_TIMEOUT            |
+			      IBV_QP_RETRY_CNT          |
+			      IBV_QP_RNR_RETRY          |
+			      IBV_QP_SQ_PSN             |
+			      IBV_QP_MAX_QP_RD_ATOMIC)) {
 		fprintf(stderr, "Failed to modify QP to RTS\n");
 		return 1;
 	}
@@ -659,7 +663,9 @@ static void usage(const char *argv0)
 	printf("  -a, --check-nop	    check NOP opcode\n");
 	printf("  -o, --odp		    use on demand paging\n");
 	printf("  -u, --upstream            use upstream API\n");
+	printf("  -t, --upstream            use upstream API\n");
 	printf("  -z, --contig_addr         use specifix addr for contig pages MR, must use with -c flag\n");
+	printf("  -b, --ooo                 enable multipath processing\n");
 }
 
 int send_nop(struct pingpong_context *ctx)
@@ -749,10 +755,11 @@ int main(int argc, char *argv[])
 			{ .name = "odp",           .has_arg = 0, .val = 'o' },
 			{ .name = "upstream",      .has_arg = 0, .val = 'u' },
 			{ .name = "contig_addr",   .has_arg = 1, .val = 'z' },
+			{ .name = "ooo",           .has_arg = 0, .val = 'b' },
 			{ 0 }
 		};
 
-		c = getopt_long(argc, argv, "p:d:i:s:m:r:n:l:ecg:t:aouz:",
+		c = getopt_long(argc, argv, "p:d:i:s:m:r:n:l:ecbg:t:aouz:",
 				long_options, NULL);
 		if (c == -1)
 			break;
@@ -832,7 +839,9 @@ int main(int argc, char *argv[])
 		case 'z':
 			contig_addr = (void *)(uintptr_t)strtol(optarg, NULL, 0);
 			break;
-
+		case 'b':
+			use_ooo = 1;
+			break;
 		default:
 			usage(argv[0]);
 			return 1;
