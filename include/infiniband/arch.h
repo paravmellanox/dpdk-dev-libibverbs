@@ -90,7 +90,7 @@ static inline uint64_t ntohll(uint64_t x) { return x; }
 #elif defined(__PPC64__)
 
 #define mb()	 asm volatile("sync" ::: "memory")
-#define rmb()	 asm volatile("lwsync" ::: "memory")
+#define rmb()	 asm volatile("sync" ::: "memory")
 #define wmb()	 rmb()
 #define wc_wmb() mb()
 #define nc_wmb() mb()
